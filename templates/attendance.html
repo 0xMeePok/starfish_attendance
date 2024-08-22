@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Records</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('.attended-dropdown').change(function() {
+                var classId = $(this).data('class-id');
+                var studentId = $(this).data('student-id');
+                var attendedValue = $(this).val();
+
+                $.ajax({
+                    url: '/update_attendance',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        'class_id': classId,
+                        'student_id': studentId,
+                        'attended': attendedValue
+                    }),
+                    success: function(response) {
+                        alert('Attendance updated successfully!');
+                    },
+                    error: function(error) {
+                        alert('Error updating attendance.');
+                    }
+                });
+            });
+        });
+    </script>
+
+</head>
+<body>
+    <div class="container mt-5">
+        <h2 class="text-center">Attendance Records</h2>
+        <table class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>Class ID</th>
+                    <th>Student ID</th>
+                    <th>Date</th>
+                    <th>Attended</th>
+                    <th>Remarks</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in attendance_data %}
+                <tr>
+                    <td>{{ row[0] }}</td>
+                    <td>{{ row[1] }}</td>
+                    <td>{{ row[2] }}</td>
+                    <td>
+                        <select class="attended-dropdown" data-class-id="{{ row[0] }}" data-student-id="{{ row[1] }}">
+                            <option value="1" {% if row[3] %}selected{% endif %}>Yes</option>
+                            <option value="0" {% if not row[3] %}selected{% endif %}>No</option>
+                        </select>
+                    </td>
+                    <td>{{ row[4] }}</td>
+                    <td>{{ row[5] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
