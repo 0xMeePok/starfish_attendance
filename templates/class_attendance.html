@@ -8,7 +8,7 @@
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script>
         $(document).ready(function() {
-            $('.custom-select').change(function() {
+            $('.attended-dropdown').change(function() {  // Changed from .custom-select to .attended-dropdown
                 var classId = $(this).data('class-id');
                 var studentId = $(this).data('student-id');
                 var attendedValue = $(this).val();
@@ -23,9 +23,10 @@
                         'attended': attendedValue
                     }),
                     success: function(response) {
-                       
+                        
                     },
                     error: function(error) {
+                        console.log("Error updating attendance for Class ID:", classId, "Student ID:", studentId);
                         alert('Error updating attendance.');
                     }
                 });
@@ -39,9 +40,10 @@
         <table class="table table-hover">
             <thead>
                 <tr>
-                    <th>Class ID</th>
+                    <th>Class Subject</th>
                     <th>Student Name</th>
-                    <th>Date</th>
+                    <th>Date of Class</th>
+                    <th>Time Attended</th>
                     <th>Attended</th>
                     <th>Remarks</th>
                     <th>Reason</th>
@@ -50,23 +52,32 @@
             <tbody>
                 {% for row in attendance_data %}
                 <tr>
-                    <td>{{ row[0] }}</td>
+                    <td>
+                        <input type="hidden" name="class_id" value="{{ row[0] }}">
+                        {{ row[3] }}
+                    </td>
                     <td>
                         <input type="hidden" name="student_id" value="{{ row[1] }}">
                         {{ row[2] }}
                     </td>
-                    <td>{{ row[3] }}</td>
+                    <td>{{ row[4] }}</td>  <!-- Date from Classes table -->
+                    <td>{{ row[5] }}</td>  <!-- TimeAttended from Attendance table -->
                     <td>
-                        <select class="custom-select" data-student-id="{{ row[1] }}" data-class-id="{{ row[0] }}">
-                            <option value="1" {% if row[4] %}selected{% endif %}>Yes</option>
-                            <option value="0" {% if not row[4] %}selected{% endif %}>No</option>
+                        <select class="attended-dropdown" data-student-id="{{ row[1] }}" data-class-id="{{ row[0] }}">
+                            <option value="1" {% if row[6] %}selected{% endif %}>Yes</option>
+                            <option value="0" {% if not row[6] %}selected{% endif %}>No</option>
                         </select>
                     </td>
-                    <td>{{ row[5] }}</td>
-                    <td>{{ row[6] }}</td>
+                    <td>
+                        <input type="text" class="remark-input" data-student-id="{{ row[1] }}" data-class-id="{{ row[0] }}" value="{{ row[7] or '' }}">
+                    </td>
+                    <td>
+                        <input type="text" class="reason-input" data-student-id="{{ row[1] }}" data-class-id="{{ row[0] }}" value="{{ row[8] or '' }}">
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
+            
         </table>        
     </div>
 </body>
