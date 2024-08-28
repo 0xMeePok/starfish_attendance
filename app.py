@@ -156,6 +156,22 @@ def enroll_student():
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor()
 
+        # Check if the student is already enrolled in the class
+        check_query = """
+        SELECT COUNT(*) FROM Attendance WHERE StudentID = %s AND ClassID = %s
+        """
+        cursor.execute(check_query, (student_id, class_id))
+        count = cursor.fetchone()[0]
+
+        if count > 0:
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": "Student is already enrolled in this class.",
+                }
+            )
+
+        # Proceed with the enrollment
         insert_query = """
         INSERT INTO Attendance (StudentID, ClassID, Attended)
         VALUES (%s, %s, 0)
@@ -208,11 +224,19 @@ def upload_student_enrollment():
                 student_id = int(row["StudentID"])  # Convert numpy.int64 to Python int
                 class_id = int(row["ClassID"])  # Convert numpy.int64 to Python int
 
-                insert_query = """
-                INSERT INTO Attendance (StudentID, ClassID, Attended)
-                VALUES (%s, %s, 0)
+                # Check if the student is already enrolled in the class
+                check_query = """
+                SELECT COUNT(*) FROM Attendance WHERE StudentID = %s AND ClassID = %s
                 """
-                cursor.execute(insert_query, (student_id, class_id))
+                cursor.execute(check_query, (student_id, class_id))
+                count = cursor.fetchone()[0]
+
+                if count == 0:
+                    insert_query = """
+                    INSERT INTO Attendance (StudentID, ClassID, Attended)
+                    VALUES (%s, %s, 0)
+                    """
+                    cursor.execute(insert_query, (student_id, class_id))
 
             conn.commit()
             cursor.close()
