@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create New Class</title>
+    <title>Attendance System</title>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <style>
         /* Show the dropdown menu on hover */
@@ -18,6 +18,8 @@
             
         }
     </style>
+        
+        
 </head>
 <body>
     <!-- Navigation Bar -->
@@ -55,49 +57,15 @@
             </ul>
         </div>
     </nav>
+
+    <!-- Main Content -->
     <div class="container mt-5">
-        <h2 class="text-center">Create New Class Schedule</h2>
-        <form id="create-class-form" method="POST">
-            <div class="form-group">
-                <label for="class_name">Class Name:</label>
-                <input type="text" class="form-control" id="class_name" name="class_name" required>
-            </div>
-            <div class="form-group">
-                <label for="class_date">Date of Class:</label>
-                <input type="date" class="form-control" id="class_date" name="class_date" required>
-            </div>
-            <div class="form-group">
-                <label for="class_time">Time of Class:</label>
-                <input type="time" class="form-control" id="class_time" name="class_time" required>
-            </div>
-            <button type="submit" class="btn btn-primary">Create Class</button>
-        </form>
+        <h1 class="text-center">Welcome to the Attendance System</h1>
+        <p class="text-center">Use the menu above to manage classes and enroll students.</p>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-    <script>
-        $(document).ready(function() {
-            $('#create-class-form').on('submit', function(event) {
-                event.preventDefault();
-                
-                $.ajax({
-                    url: '/create_class',
-                    method: 'POST',
-                    data: $(this).serialize(),
-                    success: function(response) {
-                        alert(response.message);
-                        if (response.status === 'success') {
-                            // Clear the form after successful creation
-                            $('#create-class-form')[0].reset();
-                        }
-                    },
-                    error: function(error) {
-                        alert('Error creating class.');
-                        console.log("Error:", error);
-                    }
-                });
-            });
-        });
-    </script>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
 </html>

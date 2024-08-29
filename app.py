@@ -24,6 +24,33 @@ db_config = {
 }
 
 
+# Custom handler for 404 Not Found
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template("index.html"), 404
+
+
+# Custom handler for 500 Internal Server Error
+@app.errorhandler(500)
+def internal_server_error(e):
+    return render_template("index.html"), 500
+
+
+# Custom handler for other exceptions
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Log the error details (only on the server side, not to the user)
+    app.logger.error(f"Server error: {str(e)}")
+
+    # Return a generic error message
+    return render_template("index.html"), 500
+
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
 """
 Creation of Classes to map:
 
@@ -415,6 +442,53 @@ def update_remark_reason():
     conn.close()
 
     return jsonify({"status": "success"})
+
+
+@app.route("/attendance/search", methods=["GET"])
+def search_attendance():
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+
+    # Base query to retrieve all classes
+    base_query = """
+    SELECT ClassId, ClassName, Date FROM Classes
+    """
+
+    search_query = base_query
+    query_params = []
+
+    # Get the search parameters
+    class_id = request.args.get("class_id", None)
+    class_name = request.args.get("class_name", None)
+    date = request.args.get("date", None)
+
+    # Build the search query based on provided parameters
+    if class_id:
+        search_query += " WHERE ClassId LIKE %s"
+        query_params.append(f"%{class_id}%")
+
+    if class_name:
+        if "WHERE" in search_query:
+            search_query += " AND ClassName LIKE %s"
+        else:
+            search_query += " WHERE ClassName LIKE %s"
+        query_params.append(f"%{class_name}%")
+
+    if date:
+        if "WHERE" in search_query:
+            search_query += " AND DATE(Date) = %s"
+        else:
+            search_query += " WHERE DATE(Date) = %s"
+        query_params.append(date)
+
+    # Execute the query
+    cursor.execute(search_query, query_params)
+    classes = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return render_template("search_attendance.html", classes=classes)
 
 
 @app.route("/")
