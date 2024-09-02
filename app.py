@@ -5,7 +5,7 @@ from datetime import datetime
 import pandas as pd
 import os
 from dateutil import parser
-
+import sys
 
 # Load environment variables from the .env file
 load_dotenv()
@@ -489,6 +489,55 @@ def search_attendance():
     conn.close()
 
     return render_template("search_attendance.html", classes=classes)
+
+
+@app.route('/api/class-attendance', methods=["GET"])
+def class_attendance():
+  try:
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+
+    # Corrected SQL query
+    query = """
+      SELECT 
+        DATE(c.Date) as DateString,
+        SUM(CASE WHEN c.classname = 'English' THEN a.Attended ELSE 0 END) AS EnglishAttendance,
+        SUM(CASE WHEN c.classname = 'Math' THEN a.Attended ELSE 0 END) AS MathAttendance,
+        SUM(CASE WHEN c.classname = 'Science' THEN a.Attended ELSE 0 END) AS ScienceAttendance
+      FROM 
+        Classes c 
+      LEFT JOIN 
+        Attendance a 
+      ON 
+        c.ClassId = a.ClassID 
+      GROUP BY 
+        DATE(c.Date) 
+      ORDER BY 
+        DateString;
+    """
+
+    cursor.execute(query)
+    results = cursor.fetchall()
+
+    # Convert results to desired format (list of dictionaries)
+    formatted_results = []
+    for row in results:
+      formatted_results.append({
+        "dateString": row[0],
+        "EnglishAttendance": row[1],
+        "MathAttendance": row[2],
+        "ScienceAttendance": row[3],
+      })
+
+    cursor.close()
+    conn.close()
+
+    return jsonify(formatted_results)
+
+  except Exception as e:
+    print(f"Error fetching attendance data: {e}")
+    # Consider returning a proper error response with status code
+    return jsonify({"error": "An error occurred fetching data"}), 500
 
 
 @app.route("/")
