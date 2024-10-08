@@ -1,7 +1,7 @@
 from flask import Flask, render_template, jsonify, request
 import mysql.connector
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import os
 from dateutil import parser
@@ -493,51 +493,71 @@ def search_attendance():
 
 @app.route('/api/class-attendance', methods=["GET"])
 def class_attendance():
-  try:
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor()
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
 
-    # Corrected SQL query
-    query = """
-      SELECT 
-        DATE(c.Date) as DateString,
-        SUM(CASE WHEN c.classname = 'English' THEN a.Attended ELSE 0 END) AS EnglishAttendance,
-        SUM(CASE WHEN c.classname = 'Math' THEN a.Attended ELSE 0 END) AS MathAttendance,
-        SUM(CASE WHEN c.classname = 'Science' THEN a.Attended ELSE 0 END) AS ScienceAttendance
-      FROM 
-        Classes c 
-      LEFT JOIN 
-        Attendance a 
-      ON 
-        c.ClassId = a.ClassID 
-      GROUP BY 
-        DATE(c.Date) 
-      ORDER BY 
-        DateString;
-    """
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
 
-    cursor.execute(query)
-    results = cursor.fetchall()
+        # Get the oldest and latest class records
+        date_range_query = "SELECT MIN(Date), MAX(Date) FROM Classes"
+        cursor.execute(date_range_query)
+        oldest_class_date, latest_class_date = cursor.fetchone()
 
-    # Convert results to desired format (list of dictionaries)
-    formatted_results = []
-    for row in results:
-      formatted_results.append({
-        "dateString": row[0],
-        "EnglishAttendance": row[1],
-        "MathAttendance": row[2],
-        "ScienceAttendance": row[3],
-      })
+        query = """
+        SELECT 
+            DATE(c.Date) as DateString,
+            SUM(CASE WHEN c.classname = 'English' THEN a.Attended ELSE 0 END) AS EnglishAttendance,
+            SUM(CASE WHEN c.classname = 'Math' THEN a.Attended ELSE 0 END) AS MathAttendance,
+            SUM(CASE WHEN c.classname = 'Science' THEN a.Attended ELSE 0 END) AS ScienceAttendance
+        FROM 
+            Classes c 
+        LEFT JOIN 
+            Attendance a 
+        ON 
+            c.ClassId = a.ClassID 
+        """
 
-    cursor.close()
-    conn.close()
+        if start_date and end_date:
+            query += "WHERE c.Date BETWEEN %s AND %s "
+            query_params = (start_date, end_date)
+        else:
+            # If no date range is specified, use the full range of class dates
+            query += "WHERE c.Date BETWEEN %s AND %s "
+            query_params = (oldest_class_date, latest_class_date)
 
-    return jsonify(formatted_results)
+        query += """
+        GROUP BY 
+            DATE(c.Date) 
+        ORDER BY 
+            DateString;
+        """
 
-  except Exception as e:
-    print(f"Error fetching attendance data: {e}")
-    # Consider returning a proper error response with status code
-    return jsonify({"error": "An error occurred fetching data"}), 500
+        cursor.execute(query, query_params)
+        results = cursor.fetchall()
+
+        formatted_results = []
+        for row in results:
+            formatted_results.append({
+                "dateString": row[0].strftime('%Y-%m-%d'),
+                "EnglishAttendance": row[1],
+                "MathAttendance": row[2],
+                "ScienceAttendance": row[3],
+            })
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "data": formatted_results,
+            "oldestClassDate": oldest_class_date.strftime('%Y-%m-%d'),
+            "latestClassDate": latest_class_date.strftime('%Y-%m-%d')
+        })
+
+    except Exception as e:
+        print(f"Error fetching attendance data: {e}")
+        return jsonify({"error": "An error occurred fetching data"}), 500
 
 
 @app.route("/")

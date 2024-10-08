@@ -1,184 +1,177 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Attendance System</title>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-
-    <!-- Load the full version of jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* Show the dropdown menu on hover */
-        .navbar-nav .dropdown:hover .dropdown-menu {
-            display: block;
-            margin-top: 0;
-        }
-
-        /* Optional: Add a slight delay for a smoother experience */
-        .navbar-nav .dropdown-menu {
-            transition: all 0.3s ease-in-out;
-        }
-
-        /* Scrollable chart container */
-        #chart_scroll_container {
-            overflow-x: auto;
-            padding-bottom: 20px;
-        }
-
-        /* Ensure the filter menu is scrollable */
-        .google-visualization-controls-categoryfilter-dropdown {
-            max-height: 150px; /* Adjust this value to control the visible dropdown height */
-            overflow-y: auto;
+        #chartContainer {
+            width: 80%;
+            margin: 0 auto;
         }
     </style>
-
-    <!-- Load Google Charts -->
-    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
-    <script type="text/javascript">
-        // Load the Visualization API, the corechart package, and the controls package.
-        google.charts.load('current', { 'packages': ['corechart', 'controls'] });
-
-        // Set a callback to run when the Google Visualization API is loaded.
-        google.charts.setOnLoadCallback(fetchDataAndDrawChart);
-
-        function fetchDataAndDrawChart() {
-            function fetchData() {
-                $.ajax({
-                    url: '/api/class-attendance',
-                    method: 'GET',
-                    dataType: 'json',
-                    success: function (response) {
-                        drawDashboard(response);
-                    },
-                    error: function (xhr, status, error) {
-                        console.error('Error fetching data:', error);
-                    }
-                });
-            }
-
-            function drawDashboard(data) {
-                var dataTable = new google.visualization.DataTable();
-                dataTable.addColumn('string', 'Date');
-                dataTable.addColumn('number', 'English');
-                dataTable.addColumn('number', 'Science');
-                dataTable.addColumn('number', 'Math');
-
-                data.forEach(function (row) {
-                    var date = new Date(row.dateString);
-                    var dateString = date.toLocaleDateString();
-                    var englishCount = parseInt(row.EnglishAttendance);
-                    var mathCount = parseInt(row.MathAttendance);
-                    var sciCount = parseInt(row.ScienceAttendance);
-
-                    dataTable.addRow([dateString, englishCount, sciCount, mathCount]);
-                });
-
-                var dashboard = new google.visualization.Dashboard(
-                    document.getElementById('dashboard_div')
-                );
-
-                var dateSlider = new google.visualization.ControlWrapper({
-                    'controlType': 'CategoryFilter',
-                    'containerId': 'filter_div',
-                    'options': {
-                        'filterColumnIndex': 0,
-                        'ui': {
-                            'label': 'Select Date Range',
-                            'allowMultiple': false,
-                            'allowTyping': false,
-                            'cssClass': 'scrollable-dropdown',
-                            'selectedValuesLayout': 'belowStacked'
-                        }
-                    }
-                });
-
-                var barChart = new google.visualization.ChartWrapper({
-                    'chartType': 'ColumnChart',
-                    'containerId': 'attendance_chart_div',
-                    'options': {
-                        'title': 'Attendance by Date',
-                        'hAxis': { title: 'Date' },
-                        'vAxis': { title: 'Attendance Count' },
-                        'colors': ['#1b9e77', '#d95f02', '#7570b3'],
-                        'height': 400,
-                        'width': 1600, // Set width to ensure scrolling
-                        'isStacked': false
-                    }
-                });
-
-                dashboard.bind(dateSlider, barChart);
-                dashboard.draw(dataTable);
-            }
-
-            $(document).ready(function () {
-                fetchData();
-            });
-        }
-    </script>
 </head>
-
 <body>
-    <!-- Navigation Bar -->
     <nav class="navbar navbar-expand-lg navbar-light bg-light">
-        <a class="navbar-brand" href="/">Attendance System</a>
-        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNavDropdown"
-            aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNavDropdown">
-            <ul class="navbar-nav ml-auto">
-                <!-- Dropdown for Adding Classes -->
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="addClassesDropdown" role="button"
-                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        Add Classes
-                    </a>
-                    <div class="dropdown-menu" aria-labelledby="addClassesDropdown">
-                        <a class="dropdown-item" href="/create_class">Manual Entry</a>
-                        <a class="dropdown-item" href="/upload_classes">File Upload</a>
-                    </div>
-                </li>
-                <!-- Dropdown for Enrolling Students -->
-                <li class="nav-item">
-                    <a class="nav-link" href="/enroll_student">Enroll Student</a>
-                </li>
-                <!-- Dropdown for Attendance -->
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="attendanceDropdown" role="button"
-                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        Attendance
-                    </a>
-                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="attendanceDropdown">
-                        <a class="dropdown-item" href="/overall_attendance">Overall Attendance</a>
-                        <a class="dropdown-item" href="/attendance/search">Search For Classes</a>
-                    </div>
-                </li>
-            </ul>
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Attendance System</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown" aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNavDropdown">
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="addClassesDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Add Classes
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="addClassesDropdown">
+                            <li><a class="dropdown-item" href="/create_class">Manual Entry</a></li>
+                            <li><a class="dropdown-item" href="/upload_classes">File Upload</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/enroll_student">Enroll Student</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="attendanceDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Attendance
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="attendanceDropdown">
+                            <li><a class="dropdown-item" href="/overall_attendance">Overall Attendance</a></li>
+                            <li><a class="dropdown-item" href="/attendance/search">Search For Classes</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
         </div>
     </nav>
 
-    <!-- Main Content -->
     <div class="container mt-5">
-        <h1 class="text-center">Welcome to the Attendance System</h1>
-        <p class="text-center">Use the menu above to manage classes and enroll students.</p>
-        <!-- Dashboard Section -->
-        <div id="dashboard_div">
-            <!-- Filter Section -->
-            <div id="filter_div"></div>
-            <!-- Scrollable Chart Section -->
-            <div id="chart_scroll_container">
-                <div id="attendance_chart_div" class="mt-5">
-                    <!-- The chart will be rendered here -->
-                </div>
+        <h1 class="text-center mb-4">Welcome to the Attendance System</h1>
+        
+        <div class="row mb-3">
+            <div class="col-md-6 offset-md-3">
+                <label for="startDate" class="form-label">Start Date:</label>
+                <input type="date" id="startDate" class="form-control">
             </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6 offset-md-3">
+                <label for="endDate" class="form-label">End Date:</label>
+                <input type="date" id="endDate" class="form-control">
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6 offset-md-3">
+                <button id="filterButton" class="btn btn-primary w-100">Apply Filter</button>
+            </div>
+        </div>
+
+        <div id="chartContainer">
+            <canvas id="attendanceChart"></canvas>
         </div>
     </div>
 
-    <!-- Correct order of Bootstrap JavaScript dependencies -->
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-</body>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let chart;
+        let minDate;
+        let maxDate;
 
+        function createChart(data) {
+            const ctx = document.getElementById('attendanceChart').getContext('2d');
+            
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(item => item.dateString),
+                    datasets: [
+                        {
+                            label: 'English',
+                            data: data.map(item => item.EnglishAttendance),
+                            borderColor: 'rgb(255, 99, 132)',
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Math',
+                            data: data.map(item => item.MathAttendance),
+                            borderColor: 'rgb(54, 162, 235)',
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Science',
+                            data: data.map(item => item.ScienceAttendance),
+                            borderColor: 'rgb(75, 192, 192)',
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Attendance Count'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function fetchData(startDate = null, endDate = null) {
+            let url = '/api/class-attendance';
+            if (startDate && endDate) {
+                url += `?start_date=${startDate}&end_date=${endDate}`;
+            }
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(responseData => {
+                    createChart(responseData.data);
+                    if (!startDate && !endDate) {
+                        // Set min and max dates for calendar inputs
+                        minDate = responseData.oldestClassDate;
+                        maxDate = responseData.latestClassDate;
+                        
+                        document.getElementById('startDate').min = minDate;
+                        document.getElementById('startDate').max = maxDate;
+                        document.getElementById('endDate').min = minDate;
+                        document.getElementById('endDate').max = maxDate;
+                        
+                        // Set initial values for date inputs
+                        document.getElementById('startDate').value = minDate;
+                        document.getElementById('endDate').value = maxDate;
+
+                        // Fetch data again with the full date range
+                        fetchData(minDate, maxDate);
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        document.getElementById('filterButton').addEventListener('click', function() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            fetchData(startDate, endDate);
+        });
+
+        // Initial fetch without date filter
+        fetchData();
+    </script>
+</body>
 </html>
