@@ -81,6 +81,7 @@
         let maxDate;
 
         function createChart(data) {
+            console.log("Creating chart with data:", data);
             const ctx = document.getElementById('attendanceChart').getContext('2d');
             
             if (chart) {
@@ -88,44 +89,52 @@
             }
 
             chart = new Chart(ctx, {
-                type: 'line',
+                type: 'bar',
                 data: {
                     labels: data.map(item => item.dateString),
                     datasets: [
                         {
-                            label: 'English',
-                            data: data.map(item => item.EnglishAttendance),
-                            borderColor: 'rgb(255, 99, 132)',
-                            tension: 0.1
-                        },
-                        {
-                            label: 'Math',
-                            data: data.map(item => item.MathAttendance),
-                            borderColor: 'rgb(54, 162, 235)',
-                            tension: 0.1
-                        },
-                        {
-                            label: 'Science',
-                            data: data.map(item => item.ScienceAttendance),
+                            label: 'Present',
+                            data: data.map(item => item.PresentCount),
+                            backgroundColor: 'rgba(75, 192, 192, 0.6)',
                             borderColor: 'rgb(75, 192, 192)',
-                            tension: 0.1
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Late',
+                            data: data.map(item => item.LateCount),
+                            backgroundColor: 'rgba(255, 206, 86, 0.6)',
+                            borderColor: 'rgb(255, 206, 86)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Absent',
+                            data: data.map(item => item.AbsentCount),
+                            backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                            borderColor: 'rgb(255, 99, 132)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Absent with VR',
+                            data: data.map(item => item.AbsentVRCount),
+                            backgroundColor: 'rgba(153, 102, 255, 0.6)',
+                            borderColor: 'rgb(153, 102, 255)',
+                            borderWidth: 1
                         }
                     ]
                 },
                 options: {
                     responsive: true,
                     scales: {
+                        x: {
+                            stacked: true,
+                        },
                         y: {
+                            stacked: true,
                             beginAtZero: true,
                             title: {
                                 display: true,
-                                text: 'Attendance Count'
-                            }
-                        },
-                        x: {
-                            title: {
-                                display: true,
-                                text: 'Date'
+                                text: 'Number of Students'
                             }
                         }
                     }
@@ -139,26 +148,30 @@
                 url += `?start_date=${startDate}&end_date=${endDate}`;
             }
             
+            console.log("Fetching data from:", url);
+            
             fetch(url)
                 .then(response => response.json())
                 .then(responseData => {
-                    createChart(responseData.data);
-                    if (!startDate && !endDate) {
-                        // Set min and max dates for calendar inputs
-                        minDate = responseData.oldestClassDate;
-                        maxDate = responseData.latestClassDate;
-                        
-                        document.getElementById('startDate').min = minDate;
-                        document.getElementById('startDate').max = maxDate;
-                        document.getElementById('endDate').min = minDate;
-                        document.getElementById('endDate').max = maxDate;
-                        
-                        // Set initial values for date inputs
-                        document.getElementById('startDate').value = minDate;
-                        document.getElementById('endDate').value = maxDate;
-
-                        // Fetch data again with the full date range
-                        fetchData(minDate, maxDate);
+                    console.log("Received data:", responseData);
+                    if (responseData.data && responseData.data.length > 0) {
+                        createChart(responseData.data);
+                        if (!startDate && !endDate) {
+                            // Set min and max dates for calendar inputs
+                            minDate = responseData.oldestClassDate;
+                            maxDate = responseData.latestClassDate;
+                            
+                            document.getElementById('startDate').min = minDate;
+                            document.getElementById('startDate').max = maxDate;
+                            document.getElementById('endDate').min = minDate;
+                            document.getElementById('endDate').max = maxDate;
+                            
+                            // Set initial values for date inputs
+                            document.getElementById('startDate').value = minDate;
+                            document.getElementById('endDate').value = maxDate;
+                        }
+                    } else {
+                        console.log("No data received or empty data array");
                     }
                 })
                 .catch(error => console.error('Error:', error));

@@ -6,6 +6,7 @@ import pandas as pd
 import os
 from dateutil import parser
 import sys
+import logging
 
 # Load environment variables from the .env file
 load_dotenv()
@@ -299,46 +300,49 @@ Allows the viewing of all attendance
 """
 
 
-@app.route("/overall_attendance")
-def attendance():
-    # Establish a connection to the database
+@app.route('/overall_attendance')
+def overall_attendance():
     conn = mysql.connector.connect(**db_config)
-    if conn.is_connected():
-        pass
-    else:
-        print("Failed to connect to the database")
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True)
 
-    # Query to select attendance data
     query = """
     SELECT 
-    a.ClassId, 
-    s.StudentID, 
-    s.`Student Name`, 
-    c.ClassName,
-    c.Date, 
-    a.TimeAttended,  -- Add this line to select TimeAttended
-    a.Attended, 
-    a.Remark, 
-    a.Reason
+        s.StudentID,
+        s.StudentName,
+        c.ClassID,
+        c.ClassDate,
+        a.AttendanceStatus,
+        a.TimeAttended,
+        a.Reason
     FROM 
-        Attendance a
+        Student s
     JOIN 
-        Student s ON a.StudentId = s.StudentID
+        Attendance a ON s.StudentID = a.StudentID
     JOIN 
-        Classes c ON a.ClassId = c.ClassId
-
-
+        Classes c ON a.ClassID = c.ClassID
+    ORDER BY 
+        c.ClassDate DESC, s.StudentName
     """
 
     cursor.execute(query)
     attendance_data = cursor.fetchall()
 
-    # Close the connection
+    # Format the datetime objects
+    for row in attendance_data:
+        row['ClassDate'] = row['ClassDate'].strftime('%Y-%m-%d')
+        if isinstance(row['TimeAttended'], timedelta):
+            # Convert timedelta to a formatted time string
+            seconds = row['TimeAttended'].total_seconds()
+            hours = int(seconds // 3600)
+            minutes = int((seconds % 3600) // 60)
+            row['TimeAttended'] = f"{hours:02d}:{minutes:02d}"
+        elif row['TimeAttended'] is None:
+            row['TimeAttended'] = 'N/A'
+
     cursor.close()
     conn.close()
 
-    return render_template("attendance.html", attendance_data=attendance_data)
+    return render_template('attendance.html', attendance_data=attendance_data)
 
 
 @app.route("/attendance/<int:class_id>", methods=["GET"])
@@ -380,29 +384,44 @@ def attendance_for_specific_class(class_id):
     )
 
 
-@app.route("/update_attendance", methods=["POST"])
+@app.route('/update_attendance', methods=['POST'])
 def update_attendance():
     data = request.json
-    class_id = data["class_id"]
-    student_id = data["student_id"]
-    attended = data["attended"]
-    current_time = datetime.now()  # Get the current datetime
+    student_id = data['student_id']
+    class_id = data['class_id']
+    status = data['status']
+    reason = data.get('reason', '')
 
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
 
-    update_query = """
-    UPDATE Attendance
-    SET Attended = %s, TimeAttended = %s
-    WHERE ClassId = %s AND StudentId = %s
-    """
-    cursor.execute(update_query, (attended, current_time, class_id, student_id))
-    conn.commit()
+    try:
+        # Get the class date
+        cursor.execute("SELECT ClassDate FROM Classes WHERE ClassID = %s", (class_id,))
+        class_date = cursor.fetchone()[0]
 
-    cursor.close()
-    conn.close()
+        # Determine if it's late based on the current time (if status is 'Present')
+        current_time = datetime.now().time()
+        if status == 'Present' and current_time > time(10, 0):
+            status = 'Late'
 
-    return jsonify({"status": "success"})
+        # Update the attendance record
+        update_query = """
+        UPDATE Attendance
+        SET AttendanceStatus = %s, TimeAttended = %s, Reason = %s
+        WHERE StudentID = %s AND ClassID = %s
+        """
+        cursor.execute(update_query, (status, current_time, reason, student_id, class_id))
+        conn.commit()
+
+        return jsonify({"status": "success"})
+    except Exception as e:
+        print(f"Error updating attendance: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
 
 
 @app.route("/update_remark_reason", methods=["POST"])
@@ -501,64 +520,75 @@ def class_attendance():
         end_date = request.args.get('end_date')
 
         # Get the oldest and latest class records
-        date_range_query = "SELECT MIN(Date), MAX(Date) FROM Classes"
+        date_range_query = "SELECT MIN(ClassDate), MAX(ClassDate) FROM Classes"
         cursor.execute(date_range_query)
         oldest_class_date, latest_class_date = cursor.fetchone()
 
+        logging.debug(f"Oldest class date: {oldest_class_date}, Latest class date: {latest_class_date}")
+
         query = """
         SELECT 
-            DATE(c.Date) as DateString,
-            SUM(CASE WHEN c.classname = 'English' THEN a.Attended ELSE 0 END) AS EnglishAttendance,
-            SUM(CASE WHEN c.classname = 'Math' THEN a.Attended ELSE 0 END) AS MathAttendance,
-            SUM(CASE WHEN c.classname = 'Science' THEN a.Attended ELSE 0 END) AS ScienceAttendance
+            DATE(c.ClassDate) as DateString,
+            SUM(CASE WHEN a.AttendanceStatus = 'Present' THEN 1 ELSE 0 END) AS PresentCount,
+            SUM(CASE WHEN a.AttendanceStatus = 'Late' THEN 1 ELSE 0 END) AS LateCount,
+            SUM(CASE WHEN a.AttendanceStatus = 'Absent' THEN 1 ELSE 0 END) AS AbsentCount,
+            SUM(CASE WHEN a.AttendanceStatus = 'Absent with VR' THEN 1 ELSE 0 END) AS AbsentVRCount
         FROM 
             Classes c 
         LEFT JOIN 
             Attendance a 
         ON 
-            c.ClassId = a.ClassID 
+            c.ClassID = a.ClassID 
         """
 
         if start_date and end_date:
-            query += "WHERE c.Date BETWEEN %s AND %s "
+            query += "WHERE c.ClassDate BETWEEN %s AND %s "
             query_params = (start_date, end_date)
         else:
             # If no date range is specified, use the full range of class dates
-            query += "WHERE c.Date BETWEEN %s AND %s "
+            query += "WHERE c.ClassDate BETWEEN %s AND %s "
             query_params = (oldest_class_date, latest_class_date)
 
         query += """
         GROUP BY 
-            DATE(c.Date) 
+            DATE(c.ClassDate) 
         ORDER BY 
             DateString;
         """
 
+        logging.debug(f"Executing query: {query}")
+        logging.debug(f"Query parameters: {query_params}")
+
         cursor.execute(query, query_params)
         results = cursor.fetchall()
+
+        logging.debug(f"Query results: {results}")
 
         formatted_results = []
         for row in results:
             formatted_results.append({
                 "dateString": row[0].strftime('%Y-%m-%d'),
-                "EnglishAttendance": row[1],
-                "MathAttendance": row[2],
-                "ScienceAttendance": row[3],
+                "PresentCount": row[1],
+                "LateCount": row[2],
+                "AbsentCount": row[3],
+                "AbsentVRCount": row[4],
             })
 
         cursor.close()
         conn.close()
 
-        return jsonify({
+        response_data = {
             "data": formatted_results,
             "oldestClassDate": oldest_class_date.strftime('%Y-%m-%d'),
             "latestClassDate": latest_class_date.strftime('%Y-%m-%d')
-        })
+        }
+        logging.debug(f"Response data: {response_data}")
+
+        return jsonify(response_data)
 
     except Exception as e:
-        print(f"Error fetching attendance data: {e}")
+        logging.error(f"Error fetching attendance data: {e}")
         return jsonify({"error": "An error occurred fetching data"}), 500
-
 
 @app.route("/")
 def home():
