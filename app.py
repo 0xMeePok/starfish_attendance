@@ -1,11 +1,12 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, redirect, url_for, flash
 import mysql.connector
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import pandas as pd
 import os
 from dateutil import parser
-import sys
+import csv
+import io
 import logging
 
 # Load environment variables from the .env file
@@ -175,119 +176,87 @@ StudentID, ClassID
 """
 
 
-@app.route("/enroll_student", methods=["GET", "POST"])
+@app.route('/enroll_student', methods=['GET', 'POST'])
 def enroll_student():
-    if request.method == "POST":
-        student_id = request.form["student_id"]
-        class_id = request.form["class_id"]
+    if request.method == 'POST':
+        student_name = request.form['student_name']
+        email = request.form['email']
+        phone_number = request.form['phone_number']
+        social_worker_email = request.form['social_worker_email']
+        social_worker_phone = request.form['social_worker_phone']
+        parent_email = request.form['parent_email']
+        parent_phone = request.form['parent_phone']
 
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor()
 
-        # Check if the student is already enrolled in the class
-        check_query = """
-        SELECT COUNT(*) FROM Attendance WHERE StudentID = %s AND ClassID = %s
-        """
-        cursor.execute(check_query, (student_id, class_id))
-        count = cursor.fetchone()[0]
-
-        if count > 0:
-            return jsonify(
-                {
-                    "status": "error",
-                    "message": "Student is already enrolled in this class.",
-                }
-            )
-
-        # Proceed with the enrollment
-        insert_query = """
-        INSERT INTO Attendance (StudentID, ClassID, Attended)
-        VALUES (%s, %s, 0)
-        """
-        cursor.execute(insert_query, (student_id, class_id))
-        conn.commit()
-
-        cursor.close()
-        conn.close()
-
-        return jsonify(
-            {"status": "success", "message": "Student enrolled successfully!"}
-        )
-
-    return render_template("enroll_student.html")
-
-
-@app.route("/upload_student_enrollment", methods=["POST"])
-def upload_student_enrollment():
-    if "file" not in request.files:
-        return jsonify({"status": "error", "message": "No file part"})
-
-    file = request.files["file"]
-
-    if file.filename == "":
-        return jsonify({"status": "error", "message": "No selected file"})
-
-    if file and (file.filename.endswith(".csv") or file.filename.endswith(".xlsx")):
-        filepath = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
-        file.save(filepath)
-
         try:
-            if file.filename.endswith(".csv"):
-                df = pd.read_csv(filepath)
-            elif file.filename.endswith(".xlsx"):
-                df = pd.read_excel(filepath)
+            # Insert the new student into the database
+            insert_query = """
+            INSERT INTO Student (StudentName, Email, PhoneNumber, SocialWorkerEmail, SocialWorkerPhone, ParentEmail, ParentPhone)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(insert_query, (student_name, email, phone_number, social_worker_email, social_worker_phone, parent_email, parent_phone))
+            conn.commit()
 
-            if not {"StudentID", "ClassID"}.issubset(df.columns):
-                return jsonify(
-                    {
-                        "status": "error",
-                        "message": "File does not contain the required headers: 'StudentID', 'ClassID'",
-                    }
-                )
+            flash('Student enrolled successfully!', 'success')
+            return redirect(url_for('enroll_student'))
+        except mysql.connector.Error as err:
+            flash(f'Error enrolling student: {err}', 'error')
+        finally:
+            cursor.close()
+            conn.close()
+
+    return render_template('enroll_student.html')
+
+
+@app.route('/upload_student_enrollment', methods=['POST'])
+def upload_student_enrollment():
+    if 'file' not in request.files:
+        flash('No file part', 'error')
+        return redirect(url_for('enroll_student'))
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        flash('No selected file', 'error')
+        return redirect(url_for('enroll_student'))
+    
+    if file and file.filename.endswith('.csv'):
+        try:
+            # Read the CSV file
+            stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+            csv_reader = csv.reader(stream)
+            next(csv_reader)  # Skip header row if present
 
             conn = mysql.connector.connect(**db_config)
             cursor = conn.cursor()
 
-            for index, row in df.iterrows():
-                student_id = int(row["StudentID"])  # Convert numpy.int64 to Python int
-                class_id = int(row["ClassID"])  # Convert numpy.int64 to Python int
+            for row in csv_reader:
+                if len(row) != 7:
+                    flash(f'Invalid row in CSV: {row}. Expected 7 fields.', 'error')
+                    continue
 
-                # Check if the student is already enrolled in the class
-                check_query = """
-                SELECT COUNT(*) FROM Attendance WHERE StudentID = %s AND ClassID = %s
+                student_name, email, phone_number, social_worker_email, social_worker_phone, parent_email, parent_phone = row
+
+                # Insert the new student into the database
+                insert_query = """
+                INSERT INTO Student (StudentName, Email, PhoneNumber, SocialWorkerEmail, SocialWorkerPhone, ParentEmail, ParentPhone)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """
-                cursor.execute(check_query, (student_id, class_id))
-                count = cursor.fetchone()[0]
-
-                if count == 0:
-                    insert_query = """
-                    INSERT INTO Attendance (StudentID, ClassID, Attended)
-                    VALUES (%s, %s, 0)
-                    """
-                    cursor.execute(insert_query, (student_id, class_id))
+                cursor.execute(insert_query, (student_name, email, phone_number, social_worker_email, social_worker_phone, parent_email, parent_phone))
 
             conn.commit()
             cursor.close()
             conn.close()
 
-            os.remove(filepath)
-
-            return jsonify(
-                {
-                    "status": "success",
-                    "message": "Students enrolled successfully from file!",
-                }
-            )
-
+            flash('Students enrolled successfully from CSV!', 'success')
         except Exception as e:
-            return jsonify({"status": "error", "message": str(e)})
+            flash(f'Error processing CSV file: {str(e)}', 'error')
+    else:
+        flash('Invalid file type. Please upload a CSV file.', 'error')
 
-    return jsonify(
-        {
-            "status": "error",
-            "message": "Unsupported file format. Please upload a .csv or .xlsx file.",
-        }
-    )
+    return redirect(url_for('enroll_student'))
 
 
 # Attendance related functions
@@ -589,6 +558,41 @@ def class_attendance():
     except Exception as e:
         logging.error(f"Error fetching attendance data: {e}")
         return jsonify({"error": "An error occurred fetching data"}), 500
+    
+@app.route('/create_marks', methods=['GET', 'POST'])
+def create_marks():
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+
+    # Fetch all students for the dropdown
+    cursor.execute("SELECT StudentID, StudentName FROM Student")
+    students = cursor.fetchall()
+
+    if request.method == 'POST':
+        subject = request.form['subject']
+        test_type = request.form['test_type']
+        student_id = request.form['student_id']
+        marks_obtained = float(request.form['marks_obtained'])
+        total_marks = float(request.form['total_marks'])
+        weightage = float(request.form['weightage'])
+
+        # Insert the marks into the database
+        insert_query = """
+        INSERT INTO Marks (StudentID, Subject, TestType, MarksObtained, TotalMarks, Weightage)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(insert_query, (student_id, subject, test_type, marks_obtained, total_marks, weightage))
+        conn.commit()
+
+        cursor.close()
+        conn.close()
+
+        return redirect(url_for('create_marks'))
+
+    cursor.close()
+    conn.close()
+
+    return render_template('create_marks.html', students=students)
 
 @app.route("/")
 def home():

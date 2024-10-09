@@ -21,13 +21,30 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNavDropdown">
                 <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/">Home</a>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="addClassesDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Add Classes
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="addClassesDropdown">
+                            <li><a class="dropdown-item" href="/create_class">Manual Entry</a></li>
+                            <li><a class="dropdown-item" href="/upload_classes">File Upload</a></li>
+                        </ul>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/student_details">Student Details</a>
+                        <a class="nav-link" href="/enroll_student">Enroll Student</a>
                     </li>
-                    <!-- Add other navigation items as needed -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="attendanceDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Attendance
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="attendanceDropdown">
+                            <li><a class="dropdown-item" href="/overall_attendance">Overall Attendance</a></li>
+                            <li><a class="dropdown-item" href="/attendance/search">Search For Classes</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/create_marks">Create Marks</a>
+                    </li>
                 </ul>
             </div>
         </div>
