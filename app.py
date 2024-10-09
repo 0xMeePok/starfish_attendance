@@ -56,116 +56,70 @@ def index():
 """
 Creation of Classes to map:
 
-ClassID, ClassName, Date and Time of class
+
 """
+@app.route("/create_subject_class", methods=["GET", "POST"])
+def create_subject_class():
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
 
+    # Fetch all existing subjects
+    cursor.execute("SELECT SubjectID, SubjectName FROM Subject")
+    subjects = cursor.fetchall()
 
-@app.route("/create_class", methods=["GET", "POST"])
-def create_class():
+    cursor.close()
+    conn.close()
+
     if request.method == "POST":
-        # Get form data (exclude ClassId)
-        class_name = request.form["class_name"]
+        # Check for both the selected subject and the manually entered one
+        selected_subject_id = request.form.get("selected_subject")  # Existing subject
+        subject_name = request.form.get("subject_name")  # New subject entered
+
+        # Get form data for the class date
         class_date = request.form["class_date"]
-        class_time = request.form["class_time"]
 
-        # Combine date and time into a single datetime object
-        class_datetime_str = f"{class_date} {class_time}"
-        class_datetime = datetime.strptime(class_datetime_str, "%Y-%m-%d %H:%M")
-
-        # Insert the new class into the database (ClassId will be auto-incremented)
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor()
 
-        insert_query = """
-        INSERT INTO Classes (ClassName, Date)
+        # If the user enters a new subject, check if it already exists
+        if not selected_subject_id and subject_name:
+            check_subject_query = """
+            SELECT SubjectID FROM Subject WHERE SubjectName = %s
+            """
+            cursor.execute(check_subject_query, (subject_name,))
+            existing_subject = cursor.fetchone()
+
+            if existing_subject:
+                # If subject exists, use its ID
+                subject_id = existing_subject[0]
+            else:
+                # If the subject does not exist, insert it
+                insert_subject_query = """
+                INSERT INTO Subject (SubjectName)
+                VALUES (%s)
+                """
+                cursor.execute(insert_subject_query, (subject_name,))
+                subject_id = cursor.lastrowid  # Get the newly inserted SubjectID
+        else:
+            # Use the selected subject ID if it was chosen
+            subject_id = selected_subject_id
+
+        # Insert class with ClassDate and SubjectID
+        insert_class_query = """
+        INSERT INTO Classes (ClassDate, SubjectID)
         VALUES (%s, %s)
         """
-        cursor.execute(insert_query, (class_name, class_datetime))
-        conn.commit()
+        cursor.execute(insert_class_query, (class_date, subject_id))
 
+        conn.commit()
         cursor.close()
         conn.close()
 
-        return jsonify({"status": "success", "message": "Class created successfully!"})
+        return jsonify({"status": "success", "message": "Subject and class created successfully!"})
 
-    return render_template("create_class.html")
+    return render_template("create_subject_class.html", subjects=subjects)
 
 
-@app.route("/upload_classes", methods=["GET", "POST"])
-def upload_classes():
-    if request.method == "POST":
-        # Check if a file is uploaded
-        if "file" not in request.files:
-            return jsonify({"status": "error", "message": "No file part"})
-
-        file = request.files["file"]
-
-        if file.filename == "":
-            return jsonify({"status": "error", "message": "No selected file"})
-
-        if file and (file.filename.endswith(".csv") or file.filename.endswith(".xlsx")):
-            # Save the uploaded file
-            filepath = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
-            file.save(filepath)
-
-            try:
-                # Read the file into a DataFrame
-                if file.filename.endswith(".csv"):
-                    df = pd.read_csv(filepath)
-                elif file.filename.endswith(".xlsx"):
-                    df = pd.read_excel(filepath)
-
-                # Validate required columns
-                if not {"ClassName", "Date"}.issubset(df.columns):
-                    return jsonify(
-                        {
-                            "status": "error",
-                            "message": "File does not contain the required headers: 'ClassName', 'Date'",
-                        }
-                    )
-
-                # Process each row
-                conn = mysql.connector.connect(**db_config)
-                cursor = conn.cursor()
-
-                for index, row in df.iterrows():
-                    class_name = row["ClassName"]
-                    class_datetime = parser.parse(
-                        str(row["Date"])
-                    )  # Use parser to handle different date-time formats
-
-                    insert_query = """
-                    INSERT INTO Classes (ClassName, Date)
-                    VALUES (%s, %s)
-                    """
-                    cursor.execute(insert_query, (class_name, class_datetime))
-
-                conn.commit()
-                cursor.close()
-                conn.close()
-
-                # Delete the file after processing
-                os.remove(filepath)
-
-                return jsonify(
-                    {
-                        "status": "success",
-                        "message": "Classes created successfully from file!",
-                    }
-                )
-
-            except Exception as e:
-                return jsonify({"status": "error", "message": str(e)})
-
-        else:
-            return jsonify(
-                {
-                    "status": "error",
-                    "message": "Unsupported file format. Please upload a .csv or .xlsx file.",
-                }
-            )
-
-    return render_template("upload_classes.html")
 
 
 """
