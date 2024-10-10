@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, redirect, url_for, flash
+from flask import Flask, render_template, jsonify, request, redirect, url_for, flash, make_response
 import mysql.connector
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
@@ -8,6 +8,7 @@ from dateutil import parser
 import csv
 import io
 import logging
+from io import StringIO
 
 # Load environment variables from the .env file
 load_dotenv()
@@ -128,8 +129,6 @@ Enrolling of students to classes
 CSV Format
 StudentID, ClassID
 """
-
-
 @app.route('/enroll_student', methods=['GET', 'POST'])
 def enroll_student():
     if request.method == 'POST':
@@ -325,7 +324,7 @@ def update_attendance():
 
         # Determine if it's late based on the current time (if status is 'Present')
         current_time = datetime.now().time()
-        if status == 'Present' and current_time > time(10, 0):
+        if status == 'Present' and current_time > datetime.time(10, 15):
             status = 'Late'
 
         # Update the attendance record
@@ -547,6 +546,103 @@ def create_marks():
     conn.close()
 
     return render_template('create_marks.html', students=students)
+
+
+@app.route("/export_class_attendance", methods=["GET", "POST"])
+def export_class_attendance():
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+
+    # Fetch all subjects for the dropdown
+    cursor.execute("SELECT SubjectID, SubjectName FROM Subject")
+    subjects = cursor.fetchall()
+
+    if request.method == "POST":
+        selected_subject_id = request.form.get("selected_subject")
+        selected_class_date = request.form.get("selected_class_date")
+
+        # Fetch attendance data for the selected subject and class date
+        cursor.execute("""
+            SELECT Student.StudentName, Attendance.AttendanceStatus
+            FROM Attendance
+            JOIN Student ON Attendance.StudentID = Student.StudentID
+            JOIN Classes ON Attendance.ClassID = Classes.ClassID
+            WHERE Classes.SubjectID = %s AND Classes.ClassDate = %s
+        """, (selected_subject_id, selected_class_date))
+        attendance_data = cursor.fetchall()
+        # Fetch the subject name to include in the filename
+        cursor.execute("SELECT SubjectName FROM Subject WHERE SubjectID = %s", (selected_subject_id,))
+        subject_name = cursor.fetchone()[0]
+
+        # Initialize categorized attendance dictionary for all statuses
+        categorized_attendance = {
+            "Present": [],
+            "Late": [],
+            "Absent": [],
+            "Absent with VR": []
+        }
+
+        # Categorize attendance
+        for student_name, attendance_status in attendance_data:
+            if attendance_status in categorized_attendance:
+                categorized_attendance[attendance_status].append(student_name)
+
+        # Create a CSV response
+        output = StringIO()
+        writer = csv.writer(output)
+
+        # Write header
+        writer.writerow(["Attendance Status", "Students"])
+
+        # Write categorized attendance
+        for status, students in categorized_attendance.items():
+            writer.writerow([status, ", ".join(students)])
+
+        output.seek(0)
+        formatted_date = datetime.strptime(selected_class_date, '%Y-%m-%d').strftime('%Y-%m-%d')
+        filename = f"{subject_name}_{formatted_date}.csv"
+        # Generate a response with the CSV file for download
+        response = make_response(output.getvalue())
+        response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+        response.headers["Content-type"] = "text/csv"
+
+        cursor.close()
+        conn.close()
+
+        return response  # This sends the CSV file as a response
+
+    # If it's a GET request, render the form
+    cursor.close()
+    conn.close()
+    return render_template("export_class_attendance.html", subjects=subjects)
+
+
+@app.route("/get_classes", methods=["GET"])
+def get_classes():
+    subject_id = request.args.get("subject_id")
+
+    if not subject_id:
+        return jsonify({"error": "Subject ID is required"}), 400
+
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+
+    try:
+        # Fetch class dates for the selected subject
+        cursor.execute("SELECT ClassDate FROM Classes WHERE SubjectID = %s", (subject_id,))
+        class_dates = cursor.fetchall()
+
+        # Create a list of class dates to return as JSON
+        result = {"classes": [{"ClassDate": class_date[0].strftime('%Y-%m-%d')} for class_date in class_dates]}
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"Error fetching class dates: {e}")
+        return jsonify({"error": "Failed to fetch class dates"}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
 
 @app.route("/")
 def home():

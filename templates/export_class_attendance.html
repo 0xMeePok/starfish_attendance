@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Export Class Attendance - Attendance System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Attendance System</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown" aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNavDropdown">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/create_subject_class">Add Class</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/enroll_student">Enroll Student</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="attendanceDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Attendance
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="attendanceDropdown">
+                            <li><a class="dropdown-item" href="/overall_attendance">Overall Attendance</a></li>
+                            <li><a class="dropdown-item" href="/attendance/search">Search For Classes</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/create_marks">Create Marks</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <h2 class="text-center mb-4">Export Class Attendance</h2>
+        
+        <form method="POST" action="/export_class_attendance">
+            <!-- Subject selection dropdown -->
+            <div class="form-group">
+                <label for="selected_subject">Select Subject:</label>
+                <select class="form-control" id="selected_subject" name="selected_subject" required>
+                    <option value="">-- Select a subject --</option>
+                    {% for subject in subjects %}
+                        <option value="{{ subject[0] }}">{{ subject[1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Class date selection dropdown -->
+            <div class="form-group">
+                <label for="selected_class_date">Select Class Date:</label>
+                <select class="form-control" id="selected_class_date" name="selected_class_date" required>
+                    <option value="">-- Select a date --</option>
+                    <!-- This will be populated based on the selected subject -->
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Export Attendance</button>
+        </form>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('selected_subject').addEventListener('change', function() {
+            const subjectId = this.value;
+
+            // Fetch the class dates for the selected subject
+            fetch(`/get_classes?subject_id=${subjectId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                const classDateSelect = document.getElementById('selected_class_date');
+                classDateSelect.innerHTML = ''; // Clear existing options
+                classDateSelect.appendChild(new Option("-- Select a date --", "")); // Add default option
+
+                data.classes.forEach(classDate => {
+                    const option = document.createElement('option');
+                    option.value = classDate.ClassDate; // Assuming ClassDate is the date you want to show
+                    option.textContent = classDate.ClassDate; // Display ClassDate
+                    classDateSelect.appendChild(option);
+                });
+            })
+            .catch((error) => {
+                console.error('Error fetching class dates:', error);
+            });
+        });
+    </script>
+</body>
+</html>
