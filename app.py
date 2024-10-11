@@ -644,6 +644,62 @@ def get_classes():
         conn.close()
 
 
+@app.route("/export_marks", methods=["GET", "POST"])
+def export_marks():
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+
+    # Fetch all students for the dropdown
+    cursor.execute("SELECT StudentID, StudentName FROM Student")
+    students = cursor.fetchall()
+
+    if request.method == "POST":
+        selected_student_id = request.form.get("selected_student")
+
+        # Fetch marks data for the selected student
+        cursor.execute("""
+            SELECT Subject, TestType, MarksObtained, TotalMarks, Weightage
+            FROM Marks
+            WHERE StudentID = %s
+        """, (selected_student_id,))
+        marks_data = cursor.fetchall()
+
+        # Create a CSV response
+        output = StringIO()
+        writer = csv.writer(output)
+
+        # Write header
+        writer.writerow(["Subject", "Test Type", "Marks Obtained", "Total Marks", "Weightage"])
+
+        # Write marks data
+        for row in marks_data:
+            writer.writerow(row)
+
+        output.seek(0)
+
+        # Fetch student name for filename
+        cursor.execute("SELECT StudentName FROM Student WHERE StudentID = %s", (selected_student_id,))
+        student_name = cursor.fetchone()[0]
+
+        # Create a filename using the student name
+        filename = f"{student_name}_marks.csv"
+
+        # Generate a response with the CSV file for download
+        response = make_response(output.getvalue())
+        response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+        response.headers["Content-type"] = "text/csv"
+
+        cursor.close()
+        conn.close()
+
+        return response  # This sends the CSV file as a response
+
+    # If it's a GET request, render the form
+    cursor.close()
+    conn.close()
+    return render_template("export_marks.html", students=students)
+
+
 @app.route("/")
 def home():
     return render_template("index.html")
