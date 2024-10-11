@@ -1,7 +1,7 @@
 from flask import Flask, render_template, jsonify, request, redirect, url_for, flash, make_response
 import mysql.connector
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,time
 import pandas as pd
 import os
 from dateutil import parser
@@ -12,8 +12,9 @@ from io import StringIO
 
 # Load environment variables from the .env file
 load_dotenv()
-
+logging.basicConfig(level=logging.DEBUG)
 app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", "fallback_secret_key")
 # Directory to save uploaded files
 UPLOAD_FOLDER = "uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
@@ -224,47 +225,59 @@ Allows the viewing of all attendance
 
 @app.route('/overall_attendance')
 def overall_attendance():
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor(dictionary=True)
+    logging.debug("Entering overall_attendance route")
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
 
-    query = """
-    SELECT 
-        s.StudentID,
-        s.StudentName,
-        c.ClassID,
-        c.ClassDate,
-        a.AttendanceStatus,
-        a.TimeAttended,
-        a.Reason
-    FROM 
-        Student s
-    JOIN 
-        Attendance a ON s.StudentID = a.StudentID
-    JOIN 
-        Classes c ON a.ClassID = c.ClassID
-    ORDER BY 
-        c.ClassDate DESC, s.StudentName
-    """
+        query = """
+        SELECT 
+            s.StudentID,
+            s.StudentName,
+            c.ClassID,
+            c.ClassDate,
+            sub.SubjectID,
+            sub.SubjectName,
+            a.AttendanceStatus,
+            a.TimeAttended,
+            a.Reason
+        FROM 
+            Student s
+        JOIN 
+            Attendance a ON s.StudentID = a.StudentID
+        JOIN 
+            Classes c ON a.ClassID = c.ClassID
+        JOIN
+            Subject sub ON c.SubjectID = sub.SubjectID
+        ORDER BY 
+            c.ClassDate DESC, s.StudentName, sub.SubjectName
+        """
 
-    cursor.execute(query)
-    attendance_data = cursor.fetchall()
+        logging.debug(f"Executing query: {query}")
+        cursor.execute(query)
+        attendance_data = cursor.fetchall()
+        logging.debug(f"Fetched {len(attendance_data)} records")
 
-    # Format the datetime objects
-    for row in attendance_data:
-        row['ClassDate'] = row['ClassDate'].strftime('%Y-%m-%d')
-        if isinstance(row['TimeAttended'], timedelta):
-            # Convert timedelta to a formatted time string
-            seconds = row['TimeAttended'].total_seconds()
-            hours = int(seconds // 3600)
-            minutes = int((seconds % 3600) // 60)
-            row['TimeAttended'] = f"{hours:02d}:{minutes:02d}"
-        elif row['TimeAttended'] is None:
-            row['TimeAttended'] = 'N/A'
+        # Format the datetime objects
+        for row in attendance_data:
+            row['ClassDate'] = row['ClassDate'].strftime('%Y-%m-%d')
+            if isinstance(row['TimeAttended'], timedelta):
+                # Convert timedelta to a formatted time string
+                total_seconds = int(row['TimeAttended'].total_seconds())
+                hours, remainder = divmod(total_seconds, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                row['TimeAttended'] = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+            elif row['TimeAttended'] is None:
+                row['TimeAttended'] = 'N/A'
 
-    cursor.close()
-    conn.close()
+        cursor.close()
+        conn.close()
 
-    return render_template('attendance.html', attendance_data=attendance_data)
+        logging.debug("Rendering attendance.html template")
+        return render_template('attendance.html', attendance_data=attendance_data)
+    except Exception as e:
+        logging.error(f"Error in overall_attendance route: {str(e)}")
+        return f"An error occurred: {str(e)}", 500
 
 
 @app.route("/attendance/<int:class_id>", methods=["GET"])
@@ -309,42 +322,32 @@ def attendance_for_specific_class(class_id):
 @app.route('/update_attendance', methods=['POST'])
 def update_attendance():
     data = request.json
-    student_id = data['student_id']
-    class_id = data['class_id']
-    status = data['status']
-    reason = data.get('reason', '')
-
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
 
     try:
-        # Get the class date
-        cursor.execute("SELECT ClassDate FROM Classes WHERE ClassID = %s", (class_id,))
-        class_date = cursor.fetchone()[0]
+        for record in data:
+            student_id = record['studentId']
+            class_id = record['classId']
+            status = record['status']
+            reason = record.get('reason', '')
 
-        # Determine if it's late based on the current time (if status is 'Present')
-        current_time = datetime.now().time()
-        if status == 'Present' and current_time > datetime.time(10, 15):
-            status = 'Late'
+            # Update the attendance record
+            update_query = """
+            UPDATE Attendance
+            SET AttendanceStatus = %s, Reason = %s
+            WHERE StudentID = %s AND ClassID = %s
+            """
+            cursor.execute(update_query, (status, reason, student_id, class_id))
 
-        # Update the attendance record
-        update_query = """
-        UPDATE Attendance
-        SET AttendanceStatus = %s, TimeAttended = %s, Reason = %s
-        WHERE StudentID = %s AND ClassID = %s
-        """
-        cursor.execute(update_query, (status, current_time, reason, student_id, class_id))
         conn.commit()
-
         return jsonify({"status": "success"})
     except Exception as e:
-        print(f"Error updating attendance: {e}")
+        logging.error(f"Error updating attendance: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
     finally:
         cursor.close()
         conn.close()
-
-
 
 @app.route("/update_remark_reason", methods=["POST"])
 def update_remark_reason():
