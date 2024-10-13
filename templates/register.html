@@ -1,12 +1,10 @@
-{% extends "layout.html" %}
-{% block body %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Starfish Attendance Register</title>
-    <!-- <script type="text/javascript" src="../lib/reconfirmpassword.js"></script> -->
+    <script type="text/javascript" src="../lib/reconfirmpassword.js"></script>
     <style>
         :root {
             --primary-color: #ec4a4a;
@@ -115,9 +113,11 @@
     <div class="register-container">
         <img class="logo" src="{{ url_for('static', filename='starfish_logo.jpg') }}" alt="Starfish Logo" />
         <h1>Register Account</h1>
+        {% block body %}
         {% if error %}
-            <p class="error"><strong>Error:</strong> {{ error }}</p>
+            <p>{{ error }}</p>
         {% endif %}
+        {% endblock %}
         <form id="myForm" method="post">
             <div class="input-group">
                 <input type="text" id="username" name="username" required placeholder="Username">
@@ -142,4 +142,3 @@
     <script src="{{ url_for('static', filename='reconfirmpassword.js') }}"></script>
 </body>
 </html>
-{% endblock %}

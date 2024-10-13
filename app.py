@@ -727,21 +727,28 @@ def login():
         try:
             cursor.execute("select password from USERS where username = %s", (request.form['username'],))
             hashed_pwd = cursor.fetchall()
-            authoriseBool = check_password_hash(hashed_pwd[0][0], request.form['password'])
+            
+            if hashed_pwd != []:
+                authoriseBool = check_password_hash(hashed_pwd[0][0], request.form['password'])
 
-            if authoriseBool:
-                cursor.execute("select user_id, role from USERS where username = %s", (request.form['username'],))
-                result = cursor.fetchone()
-                session['user_id'] = result[0]
-                session['role'] = result[1]  # Store the role
-                return redirect(url_for('homepage'))
+                if authoriseBool:
+                    cursor.execute("select user_id, role from USERS where username = %s", (request.form['username'],))
+                    result = cursor.fetchone()
+                    session['user_id'] = result[0]
+                    session['role'] = result[1] 
+                    return redirect(url_for('homepage'))
+                else:
+                    flash('incorrect username and password, try again')
+                    return redirect(url_for('login'))
+                
             else:
-                error = 'Invalid credentials'
-                return render_template('login.html', error=error)
+                flash('incorrect username and password, try again')
+                return redirect(url_for('login'))
 
         except mysql.connector.Error as err:
             flash(f"Error: {err}")
             conn.rollback()
+            return redirect(url_for('login'))
         finally:
             cursor.close()
             conn.close()
@@ -752,22 +759,22 @@ def login():
         cursor = conn.cursor()
 
         # check if already logged in, if yes redirect back to homepage
-        try:
-            if 'user_id' in session and 'role' in session:
+        if 'user_id' in session and 'role' in session:
+            try:
                 cursor.execute("select role from USERS where user_id = %s", (session['user_id'],))
                 actual_role = cursor.fetchall()[0][0]
 
                 if actual_role == session['role']:
                     return redirect(url_for('homepage')) 
 
-        except mysql.connector.Error as err:
-            flash(f"Error: {err}")
-            conn.rollback()
+            except mysql.connector.Error as err:
+                flash(f"Error: {err}")
+                conn.rollback()
 
-        finally:
-            cursor.close()
-            conn.close()
-             
+            finally:
+                cursor.close()
+                conn.close()
+
         return render_template('login.html')    
 
 @app.route('/homepage', methods=['GET', 'POST'])
@@ -794,47 +801,46 @@ def register():
         try:
             hashed_password = generate_password_hash(request.form['password'])
             cursor.execute("INSERT INTO USERS (username, password, role) VALUES (%s, %s, 0)", (request.form['username'], hashed_password))
+            if cursor.rowcount == 0:
+                flash("Username already exists, try another name")
+                return redirect(url_for('register.html'))
             conn.commit()
 
             cursor.execute("select user_id, role from USERS where username = %s", (request.form['username'],))
             result = cursor.fetchone()
             session['user_id'] = result[0]
             session['role'] = result[1]  # Store the role
+            cursor.close()
+            conn.close()
 
             return redirect(url_for('homepage'))
 
         except mysql.connector.Error as err:
             flash(f"Error: {err}")
             conn.rollback()
-
-        finally:
             cursor.close()
-            conn.close() 
-    
-            return render_template('register.html', error=err)
+            conn.close()
+            return render_template('register.html')
     else:
-        # by default will run this when first navigated to
         conn = get_db_connection()
         cursor = conn.cursor()
 
         # check if already logged in, if yes redirect back to homepage
-        try:
-            if 'user_id' in session and 'role' in session:
+        if 'user_id' in session and 'role' in session:
+            try:
                 cursor.execute("select role from USERS where user_id = %s", (session['user_id'],))
                 actual_role = cursor.fetchall()[0][0]
 
                 if actual_role == session['role']:
                     return redirect(url_for('homepage')) 
+            except:
+                flash(f"Error: {err}")
+                conn.rollback()
+                cursor.close()
+                conn.close()
+                return render_template('register.html')
 
-        except mysql.connector.Error as err:
-            flash(f"Error: {err}")
-            conn.rollback()
-
-        finally:
-            cursor.close()
-            conn.close() 
-
-        return render_template('register.html')    
+        return render_template('register.html')
 
 
 @app.route('/error', methods=['GET', 'POST'])
@@ -848,6 +854,7 @@ def check_user_logged_in():
     # List of routes that do not require login
     public_routes = ['register', 'login', 'error', 'static']  # Elements + js in static, accessible before login pages are listed 
     if 'user_id' not in session and 'role' not in session and request.endpoint not in public_routes:
+        flash("Unauthorised access, log in and try again")
         return redirect(url_for('login'))  # Redirect to login if user_id is not in session
     
     elif request.endpoint not in public_routes:
@@ -859,6 +866,7 @@ def check_user_logged_in():
             actual_role = cursor.fetchall()[0][0]
 
             if actual_role != session['role']:
+                flash("Unauthorised access, log in and try again")
                 return redirect(url_for('login')) 
 
         except mysql.connector.Error as err:

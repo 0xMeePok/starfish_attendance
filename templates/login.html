@@ -1,8 +1,7 @@
-{% extends "layout.html" %}
-{% block body %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Starfish Attendance Login</title>
@@ -111,9 +110,6 @@
     </style>
 </head>
 <body>
-    {% if error %}
-    <p class="error"><strong>Error:</strong> {{ error }}</p>
-    ß{% endif %}
     <div class="login-container">
         <img class="logo" src="{{ url_for('static', filename='starfish_logo.jpg') }}" alt="Starfish Logo" />
         <h1>Starfish Attendance</h1>
@@ -128,6 +124,17 @@
             </div>
             <button type="submit">Login</button>
         </form>
+        {% block body %}
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <ul class="alert-danger p-2 m-1">
+                    {% for message in messages %}
+                        {{ message }}
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
+        {% endblock %}
         <div class="links">
             <a href="{{ url_for('register') }}">Register New Account</a>
             <br>
@@ -136,4 +143,3 @@
     </div>
 </body>
 </html>
-{% endblock %}
