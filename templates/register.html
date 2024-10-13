@@ -1,0 +1,145 @@
+{% extends "layout.html" %}
+{% block body %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starfish Attendance Register</title>
+    <!-- <script type="text/javascript" src="../lib/reconfirmpassword.js"></script> -->
+    <style>
+        :root {
+            --primary-color: #ec4a4a;
+            --secondary-color: #079fc5;
+            --background-color: #f7f7f7;
+            --text-color: #333;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--background-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .register-container {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 350px;
+            text-align: center;
+        }
+        .logo {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 1rem;
+        }
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            font-size: 1.8rem;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+        .input-group {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+        input:focus {
+            outline: none;
+            border-color: var(--secondary-color);
+        }
+        label {
+            position: absolute;
+            left: 0.75rem;
+            top: 0.75rem;
+            color: #999;
+            pointer-events: none;
+            transition: 0.3s ease all;
+        }
+        input:focus ~ label,
+        input:not(:placeholder-shown) ~ label {
+            top: -0.5rem;
+            left: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--secondary-color);
+            background-color: white;
+            padding: 0 0.25rem;
+        }
+        button {
+            padding: 0.75rem;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+        }
+        button:hover {
+            background-color: #ff6b6b;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        .error {
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+        .links {
+            margin-top: 1rem;
+        }
+        .links a {
+            color: var(--secondary-color);
+            text-decoration: none;
+        }
+        .links a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="register-container">
+        <img class="logo" src="{{ url_for('static', filename='starfish_logo.jpg') }}" alt="Starfish Logo" />
+        <h1>Register Account</h1>
+        {% if error %}
+            <p class="error"><strong>Error:</strong> {{ error }}</p>
+        {% endif %}
+        <form id="myForm" method="post">
+            <div class="input-group">
+                <input type="text" id="username" name="username" required placeholder="Username">
+            </div>
+            <div class="input-group">
+                <input type="password" id="password" name="password" required placeholder="Password">
+            </div>
+            <div class="input-group">
+                <input type="password" id="confirm_password" name="confirm_password" required placeholder="Re-Confirm Password">
+                <div id="error-message" class="error" style="display: none;"></div> <!-- Error message placeholder -->
+            </div>
+            <button type="submit">Register</button>
+        </form>
+        <div class="links">
+            <a href="{{ url_for('login') }}">Log In</a>
+            <br>
+        </div>
+        <div class="links">
+            <p>Forgot your password? Contact Admin to reset it!</p>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='reconfirmpassword.js') }}"></script>
+</body>
+</html>
+{% endblock %}

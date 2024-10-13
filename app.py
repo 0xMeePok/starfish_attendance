@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, redirect, url_for, flash, make_response
+from flask import Flask, render_template, jsonify, request, redirect, url_for, flash, make_response, render_template, session
 import mysql.connector
 from dotenv import load_dotenv
 from datetime import datetime, timedelta,time
@@ -9,6 +9,8 @@ import csv
 import io
 import logging
 from io import StringIO
+from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
 
 # Load environment variables from the .env file
 load_dotenv()
@@ -31,13 +33,12 @@ db_config = {
 # Custom handler for 404 Not Found
 @app.errorhandler(404)
 def page_not_found(e):
-    return render_template("index.html"), 404
-
+    return render_template('error.html', error="The page you are looking for does not exist."), 404
 
 # Custom handler for 500 Internal Server Error
 @app.errorhandler(500)
 def internal_server_error(e):
-    return render_template("index.html"), 500
+    return render_template('error.html', error="Internal Server Error."), 500
 
 
 # Custom handler for other exceptions
@@ -47,12 +48,13 @@ def handle_exception(e):
     app.logger.error(f"Server error: {str(e)}")
 
     # Return a generic error message
-    return render_template("index.html"), 500
+    return render_template('error.html', error="Internal Server Error."), 500
 
 
-@app.route("/")
-def index():
-    return render_template("index.html")
+def get_db_connection():
+    """Establish a new database connection."""
+    connection = mysql.connector.connect(**db_config)
+    return connection
 
 
 """
@@ -62,7 +64,7 @@ Creation of Classes to map:
 """
 @app.route("/create_subject_class", methods=["GET", "POST"])
 def create_subject_class():
-    conn = mysql.connector.connect(**db_config)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # Fetch all existing subjects
@@ -80,7 +82,7 @@ def create_subject_class():
         # Get form data for the class date
         class_date = request.form["class_date"]
 
-        conn = mysql.connector.connect(**db_config)
+        conn = get_db_connection()
         cursor = conn.cursor()
 
         # If the user enters a new subject, check if it already exists
@@ -141,7 +143,7 @@ def enroll_student():
         parent_email = request.form['parent_email']
         parent_phone = request.form['parent_phone']
 
-        conn = mysql.connector.connect(**db_config)
+        conn = get_db_connection()
         cursor = conn.cursor()
 
         try:
@@ -183,7 +185,7 @@ def upload_student_enrollment():
             csv_reader = csv.reader(stream)
             next(csv_reader)  # Skip header row if present
 
-            conn = mysql.connector.connect(**db_config)
+            conn = get_db_connection()
             cursor = conn.cursor()
 
             for row in csv_reader:
@@ -227,7 +229,7 @@ Allows the viewing of all attendance
 def overall_attendance():
     logging.debug("Entering overall_attendance route")
     try:
-        conn = mysql.connector.connect(**db_config)
+        conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
         query = """
@@ -282,7 +284,7 @@ def overall_attendance():
 
 @app.route("/attendance/<int:class_id>", methods=["GET"])
 def attendance_for_specific_class(class_id):
-    conn = mysql.connector.connect(**db_config)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # Modify the query to filter by ClassID
@@ -322,7 +324,7 @@ def attendance_for_specific_class(class_id):
 @app.route('/update_attendance', methods=['POST'])
 def update_attendance():
     data = request.json
-    conn = mysql.connector.connect(**db_config)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     try:
@@ -357,7 +359,7 @@ def update_remark_reason():
     remark = data.get("remark")
     reason = data.get("reason")
 
-    conn = mysql.connector.connect(**db_config)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     update_fields = []
@@ -390,7 +392,7 @@ def update_remark_reason():
 
 @app.route("/attendance/search", methods=["GET"])
 def search_attendance():
-    conn = mysql.connector.connect(**db_config)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # Base query to retrieve all classes
@@ -438,7 +440,7 @@ def search_attendance():
 @app.route('/api/class-attendance', methods=["GET"])
 def class_attendance():
     try:
-        conn = mysql.connector.connect(**db_config)
+        conn = get_db_connection()
         cursor = conn.cursor()
 
         start_date = request.args.get('start_date')
@@ -517,7 +519,7 @@ def class_attendance():
     
 @app.route('/create_marks', methods=['GET', 'POST'])
 def create_marks():
-    conn = mysql.connector.connect(**db_config)
+    conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
     # Fetch all students for the dropdown
@@ -553,7 +555,7 @@ def create_marks():
 
 @app.route("/export_class_attendance", methods=["GET", "POST"])
 def export_class_attendance():
-    conn = mysql.connector.connect(**db_config)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # Fetch all subjects for the dropdown
@@ -627,7 +629,7 @@ def get_classes():
     if not subject_id:
         return jsonify({"error": "Subject ID is required"}), 400
 
-    conn = mysql.connector.connect(**db_config)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     try:
@@ -649,7 +651,7 @@ def get_classes():
 
 @app.route("/export_marks", methods=["GET", "POST"])
 def export_marks():
-    conn = mysql.connector.connect(**db_config)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # Fetch all students for the dropdown
@@ -703,9 +705,129 @@ def export_marks():
     return render_template("export_marks.html", students=students)
 
 
-@app.route("/")
-def home():
-    return render_template("index.html")
+# Store user log in  
+
+#CREATE TABLE `users` (
+#  `user_id` int NOT NULL AUTO_INCREMENT,
+#  `username` varchar(50) NOT NULL,
+#  `password` varchar(200) NOT NULL,
+#  `role` int NOT NULL,
+#  PRIMARY KEY (`user_id`)
+#) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+@app.route('/', methods=['GET', 'POST'])
+def login():
+    error = None
+    authoriseBool = False
+
+    # login logic
+    if request.method == 'POST':
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("select password from USERS where username = %s", (request.form['username'],))
+            hashed_pwd = cursor.fetchall()
+            authoriseBool = check_password_hash(hashed_pwd[0][0], request.form['password'])
+
+            if authoriseBool:
+                cursor.execute("select user_id, role from USERS where username = %s", (request.form['username'],))
+                result = cursor.fetchone()
+                session['user_id'] = result[0]
+                session['role'] = result[1]  # Store the role
+                return redirect(url_for('homepage'))
+            else:
+                error = 'Invalid credentials'
+                return render_template('login.html', error=error)
+
+        except mysql.connector.Error as err:
+            flash(f"Error: {err}")
+            conn.rollback()
+        finally:
+            cursor.close()
+            conn.close()
+        
+    else:
+        # by default will run this when first navigated to
+        return render_template('login.html')    
+
+@app.route('/homepage', methods=['GET', 'POST'])
+def homepage():
+    return render_template('homepage.html')
+
+# to edit later
+@app.route('/forgetpassword')
+def forgetpassword():
+    return render_template("forgetpassword.html")
+
+@app.route('/logout')
+def logout():
+    session.pop('user_id', None)
+    session.pop('role', None)
+    flash("You have successfully logged out")
+    return redirect(url_for('login'))
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            hashed_password = generate_password_hash(request.form['password'])
+            cursor.execute("INSERT INTO USERS (username, password, role) VALUES (%s, %s, 0)", (request.form['username'], hashed_password))
+            conn.commit()
+
+            cursor.execute("select user_id, role from USERS where username = %s", (request.form['username'],))
+            result = cursor.fetchone()
+            session['user_id'] = result[0]
+            session['role'] = result[1]  # Store the role
+
+            cursor.close()
+            conn.close()
+
+            return redirect(url_for('homepage'))
+
+        except mysql.connector.Error as err:
+            flash(f"Error: {err}")
+            conn.rollback()
+            cursor.close()
+            conn.close()
+    
+            return render_template('register.html', error=err)
+    else:
+        return render_template('register.html')
+
+
+@app.route('/error', methods=['GET', 'POST'])
+def errorPage(err):
+    return render_template('error.html', error=err)
+
+
+# session check for each route
+@app.before_request
+def check_user_logged_in():
+    # List of routes that do not require login
+    public_routes = ['register', 'login', 'error', 'static']  # Elements + js in static, accessible before login pages are listed 
+    if 'user_id' not in session and 'role' not in session and request.endpoint not in public_routes:
+        return redirect(url_for('login'))  # Redirect to login if user_id is not in session
+    
+    elif request.endpoint not in public_routes:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("select role from USERS where user_id = %s", (session['user_id'],))
+            actual_role = cursor.fetchall()[0][0]
+
+            if actual_role != session['role']:
+                return redirect(url_for('login')) 
+
+        except mysql.connector.Error as err:
+            flash(f"Error: {err}")
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            return redirect(url_for('login'))
+
 
 
 if __name__ == "__main__":
