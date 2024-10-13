@@ -748,6 +748,26 @@ def login():
         
     else:
         # by default will run this when first navigated to
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # check if already logged in, if yes redirect back to homepage
+        try:
+            if 'user_id' in session and 'role' in session:
+                cursor.execute("select role from USERS where user_id = %s", (session['user_id'],))
+                actual_role = cursor.fetchall()[0][0]
+
+                if actual_role == session['role']:
+                    return redirect(url_for('homepage')) 
+
+        except mysql.connector.Error as err:
+            flash(f"Error: {err}")
+            conn.rollback()
+
+        finally:
+            cursor.close()
+            conn.close()
+             
         return render_template('login.html')    
 
 @app.route('/homepage', methods=['GET', 'POST'])
@@ -781,20 +801,40 @@ def register():
             session['user_id'] = result[0]
             session['role'] = result[1]  # Store the role
 
-            cursor.close()
-            conn.close()
-
             return redirect(url_for('homepage'))
 
         except mysql.connector.Error as err:
             flash(f"Error: {err}")
             conn.rollback()
+
+        finally:
             cursor.close()
-            conn.close()
+            conn.close() 
     
             return render_template('register.html', error=err)
     else:
-        return render_template('register.html')
+        # by default will run this when first navigated to
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # check if already logged in, if yes redirect back to homepage
+        try:
+            if 'user_id' in session and 'role' in session:
+                cursor.execute("select role from USERS where user_id = %s", (session['user_id'],))
+                actual_role = cursor.fetchall()[0][0]
+
+                if actual_role == session['role']:
+                    return redirect(url_for('homepage')) 
+
+        except mysql.connector.Error as err:
+            flash(f"Error: {err}")
+            conn.rollback()
+
+        finally:
+            cursor.close()
+            conn.close() 
+
+        return render_template('register.html')    
 
 
 @app.route('/error', methods=['GET', 'POST'])
