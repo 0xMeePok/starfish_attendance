@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Progress Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>Our Ref: {{ data.Ref_No }}</div>
+        <div>{{ current_date }}</div>
+    </div>
+
+    <p>Dear {{ data.Name }},</p>
+
+    <h2>Progress Report for Project Starfish, Term X (Period: {{ data.Start_Date }} to {{ data.End_Date }})</h2>
+
+    <h3>1. ACADEMIC PERFORMANCE</h3>
+    <p>The GCE NT Level examinations follows the grading below:</p>
+    <table>
+        <tr>
+            <th>Scores</th>
+            <th>Grade</th>
+            <th>Point</th>
+        </tr>
+        <tr>
+            <td>75 - 100</td>
+            <td>A</td>
+            <td>1</td>
+        </tr>
+        <tr>
+            <td>70 - 74{{ data.Band2Max }}</td>
+            <td>B</td>
+            <td>2</td>
+        </tr>
+        <tr>
+            <td>60 - 73</td>
+            <td>C</td>
+            <td>3</td>
+        </tr>
+        <tr>
+            <td>50 - 59</td>
+            <td>D</td>
+            <td>4</td>
+        </tr>
+        <tr>
+            <td>0 - 49</td>
+            <td>E</td>
+            <td>5</td>
+        </tr>
+    </table>
+
+    <p>The following are your proficiency test results:</p>
+    <table>
+        <tr>
+            <th>No.</th>
+            <th>Subject</th>
+            <th>Marks</th>
+            <th>Overall</th>
+            <th>Grade</th>
+        </tr>
+        <tr>
+            <td>1</td>
+            <td>English</td>
+            <td>{{ data.Score1Actual }} / {{ data.Score1Max }}</td>
+            <td>{{ data.Per1 }}%</td>
+            <td>{{ data.Grade1 }}</td>
+        </tr>
+        <tr>
+            <td>2</td>
+            <td>Mathematics</td>
+            <td>{{ data.Score2Actual }} / {{ data.Score2Max }}</td>
+            <td>{{ data.Per2 }}%</td>
+            <td>{{ data.Grade2 }}</td>
+        </tr>
+        <tr>
+            <td>3</td>
+            <td>Science</td>
+            <td>{{ data.Score3Actual }} / {{ data.Score3Max }}</td>
+            <td>{{ data.Per3 }}%</td>
+            <td>{{ data.Grade3 }}</td>
+        </tr>
+        <tr>
+            <td>4</td>
+            <td>Mother Tongue</td>
+            <td>{{ data.Score4Actual }} / {{ data.Score4Max }}</td>
+            <td>{{ data.Per4 }}%</td>
+            <td>{{ data.Grade4 }}</td>
+        </tr>
+        <tr>
+            <td colspan="2">Average of {{ data.NoOfSubjects }} subjects</td>
+            <td>-</td>
+            <td>{{ data.AvgOfSubjects }}%</td>
+            <td>-</td>
+        </tr>
+    </table>
+
+    <h3>2. ATTENDANCE REPORT</h3>
+    <p>The following areas reflect your attendance for the period of the Foundation Programme.</p>
+    <table>
+        <tr>
+            <th>No.</th>
+            <th>Conduct</th>
+            <th>Attendance</th>
+        </tr>
+        <tr>
+            <td>1</td>
+            <td>Present</td>
+            <td>{{ data.Attd1Actual }} / {{ data.Attd1Total }}</td>
+        </tr>
+        <tr>
+            <td>2</td>
+            <td>Absent with VR</td>
+            <td>{{ data.Attd2Actual }} / {{ data.Attd2Total }}</td>
+        </tr>
+        <tr>
+            <td>3</td>
+            <td>Attended Late</td>
+            <td>{{ data.Attd3Actual }} / {{ data.Attd3Total }}</td>
+        </tr>
+        <tr>
+            <td>4</td>
+            <td>Attendance Rate</td>
+            <td>{{ data.OverallAttdRate }}</td>
+        </tr>
+        <tr>
+            <td>5</td>
+            <td>Term Test 2</td>
+            <td>{{ data.TermTest2 }}</td>
+        </tr>
+    </table>
+    <p>* Attendance rate will be counted with consideration of VR (valid reason) i.e. MC shown, or other reasons supported with documentation</p>
+
+    <h3>3. REMARKS</h3>
+    <p>{{ data.TeacherRemarks }}</p>
+
+    <p>We look forward to supporting you in your academic journey as you approach the N-levels.</p>
+
+    <p>Yours sincerely,</p>
+    <br>
+    <p>Siti Yariyati<br>
+    Course Manager<br>
+    Project Starfish c/o Foundation of Rotary Clubs (Singapore)</p>
+</body>
+</html>
