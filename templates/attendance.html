@@ -1,154 +1,276 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Overall Attendance - Attendance System</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        .table-responsive {
-            max-height: 70vh;
-            overflow-y: auto;
-        }
-        .logo {
-            width: 50px;
-            height: 50px;
-            margin-bottom: 5px;
-        }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('homepage') }}"><img class="logo" src="{{ url_for('static', filename='starfish_logo.jpg') }}" alt="Starfish Logo" /></a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown" aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNavDropdown">
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('create_subject_class') }}">Add Class</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('enroll_student') }}">Enroll Student</a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="attendanceDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            Attendance
-                        </a>
-                        <ul class="dropdown-menu" aria-labelledby="attendanceDropdown">
-                            <li><a class="dropdown-item" href="{{ url_for('overall_attendance') }}">Overall Attendance</a></li>
-                            <li><a class="dropdown-item" href="/attendance/search">Search For Classes</a></li>
-                        </ul>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('create_marks') }}">Add Results</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('export_marks') }}">Export Marks</a>
-                    </li>
+    <html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Overall Attendance - Attendance System</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+        <style>
+            .table-responsive {
+                max-height: 70vh;
+                overflow-y: auto;
+            }
+
+            .logo {
+                width: 50px;
+                height: 50px;
+                margin-bottom: 5px;
+            }
+
+            .student-dropdown {
+                max-height: 200px;
+                overflow-y: auto;
+            }
+
+            .sortable {
+                cursor: pointer;
+            }
+
+            .sort-icon {
+                float: right;
+            }
+        </style>
+    </head>
+
+    <body>
+        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="{{ url_for('homepage') }}"><img class="logo"
+                        src="{{ url_for('static', filename='starfish_logo.jpg') }}" alt="Starfish Logo" /></a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#navbarNavDropdown" aria-controls="navbarNavDropdown" aria-expanded="false"
+                    aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNavDropdown">
+                    <ul class="navbar-nav">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('create_subject_class') }}">Add Class</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('enroll_student') }}">Enroll Student</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('overall_attendance') }}">Overall Attendance</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('create_marks') }}">Add Results</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('export_marks') }}">Export Marks</a>
+                        </li>
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('logout')}}">Logout</a>
                         </li>
-                </ul>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container mt-5">
+            <h2 class="text-center mb-4">Overall Attendance Records</h2>
+
+            <!-- Filters -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <label for="studentFilter" class="form-label">Filter by Student Name:</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="studentFilter"
+                            placeholder="Start typing a student name">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button"
+                            data-bs-toggle="dropdown" aria-expanded="false">Select Student</button>
+                        <ul class="dropdown-menu dropdown-menu-end student-dropdown" id="studentDropdown">
+                            {% for student in all_students %}
+                            <li><a class="dropdown-item" href="#">{{ student }}</a></li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label for="dateFilter" class="form-label">Filter by Date:</label>
+                    <input type="date" class="form-control" id="dateFilter">
+                </div>
+            </div>
+
+            <div id="attendanceTableContainer">
+                <!-- The table will be dynamically updated here -->
             </div>
         </div>
-    </nav>
 
-    <div class="container mt-5">
-        <h2 class="text-center mb-4">Overall Attendance Records</h2>
-        
-        {% if attendance_data %}
-        <p>Total records: {{ attendance_data|length }}</p>
-        <form id="attendanceForm">
-            <div class="table-responsive">
-                <table class="table table-striped table-hover">
-                    <thead>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const studentFilter = document.getElementById('studentFilter');
+                const studentDropdown = document.getElementById('studentDropdown');
+                const dateFilter = document.getElementById('dateFilter');
+                const attendanceTableContainer = document.getElementById('attendanceTableContainer');
+
+                // Initial attendance data
+                let attendanceData = {{ attendance_data | tojson | safe
+            }};
+            let sortColumn = 'ClassDate';
+            let sortDirection = 'desc';
+
+            function updateTable(filteredData) {
+                let tableHTML = `
+                    <form id="attendanceForm">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th class="sortable" data-column="StudentName">Student Name <span class="sort-icon"></span></th>
+                                        <th class="sortable" data-column="ClassDate">Date of Class <span class="sort-icon"></span></th>
+                                        <th class="sortable" data-column="SubjectName">Subject <span class="sort-icon"></span></th>
+                                        <th class="sortable" data-column="TimeAttended">Time Attended <span class="sort-icon"></span></th>
+                                        <th class="sortable" data-column="AttendanceStatus">Attendance Status <span class="sort-icon"></span></th>
+                                        <th>Reason</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+
+                filteredData.forEach(row => {
+                    tableHTML += `
                         <tr>
-                            <th>Student Name</th>
-                            <th>Date of Class</th>
-                            <th>Subject</th>
-                            <th>Time Attended</th>
-                            <th>Attendance Status</th>
-                            <th>Reason</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in attendance_data %}
-                        <tr>
-                            <td>{{ row.StudentName }}</td>
-                            <td>{{ row.ClassDate }}</td>
-                            <td>{{ row.SubjectName }}</td>
-                            <td>{{ row.TimeAttended }}</td>
+                            <td>${row.StudentName}</td>
+                            <td>${row.ClassDate}</td>
+                            <td>${row.SubjectName}</td>
+                            <td>${row.TimeAttended}</td>
                             <td>
-                                <select class="form-select attendance-status" data-student-id="{{ row.StudentID }}" data-class-id="{{ row.ClassID }}" name="status_{{ row.StudentID }}_{{ row.ClassID }}">
-                                    <option value="Present" {% if row.AttendanceStatus == 'Present' %}selected{% endif %}>Present</option>
-                                    <option value="Late" {% if row.AttendanceStatus == 'Late' %}selected{% endif %}>Late</option>
-                                    <option value="Absent" {% if row.AttendanceStatus == 'Absent' %}selected{% endif %}>Absent</option>
-                                    <option value="Absent with VR" {% if row.AttendanceStatus == 'Absent with VR' %}selected{% endif %}>Absent with VR</option>
+                                <select class="form-select attendance-status" data-student-id="${row.StudentID}" data-class-id="${row.ClassID}" name="status_${row.StudentID}_${row.ClassID}">
+                                    <option value="Present" ${row.AttendanceStatus === 'Present' ? 'selected' : ''}>Present</option>
+                                    <option value="Late" ${row.AttendanceStatus === 'Late' ? 'selected' : ''}>Late</option>
+                                    <option value="Absent" ${row.AttendanceStatus === 'Absent' ? 'selected' : ''}>Absent</option>
+                                    <option value="Absent with VR" ${row.AttendanceStatus === 'Absent with VR' ? 'selected' : ''}>Absent with VR</option>
                                 </select>
                             </td>
                             <td>
-                                <input type="text" class="form-control reason-input" value="{{ row.Reason or '' }}" name="reason_{{ row.StudentID }}_{{ row.ClassID }}">
+                                <input type="text" class="form-control reason-input" value="${row.Reason || ''}" name="reason_${row.StudentID}_${row.ClassID}">
                             </td>
                         </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            <div class="d-grid gap-2 col-md-6 mx-auto mt-4">
-                <button type="submit" class="btn btn-primary btn-lg">Update Attendance</button>
-            </div>
-        </form>
-        {% else %}
-        <div class="alert alert-warning" role="alert">
-            No attendance data available. Please check if there are any records in the database.
-        </div>
-        {% endif %}
-    </div>
+                    `;
+                });
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const form = document.getElementById('attendanceForm');
+                tableHTML += `
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="d-grid gap-2 col-md-6 mx-auto mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg">Update Attendance</button>
+                        </div>
+                    </form>
+                `;
 
-            if (form) {
-                form.addEventListener('submit', function(event) {
-                    event.preventDefault();
-                    
-                    const formData = new FormData(form);
-                    const updatedAttendance = [];
+                attendanceTableContainer.innerHTML = tableHTML;
 
-                    formData.forEach((value, key) => {
-                        if (key.startsWith('status_') || key.startsWith('reason_')) {
-                            const [type, studentId, classId] = key.split('_');
-                            
-                            let record = updatedAttendance.find(r => r.studentId === studentId && r.classId === classId);
-                            if (!record) {
-                                record = { studentId, classId };
-                                updatedAttendance.push(record);
-                            }
-                            
-                            if (type === 'status') {
-                                record.status = value;
-                            } else if (type === 'reason') {
-                                record.reason = value;
-                            }
+                // Re-attach event listeners
+                document.getElementById('attendanceForm').addEventListener('submit', handleFormSubmit);
+                document.querySelectorAll('.sortable').forEach(th => {
+                    th.addEventListener('click', handleSort);
+                });
+
+                // Update sort icons
+                updateSortIcons();
+            }
+
+            function filterAttendance() {
+                const nameFilter = studentFilter.value.toLowerCase();
+                const dateFilterValue = dateFilter.value;
+
+                const filteredData = attendanceData.filter(row => {
+                    const nameMatch = row.StudentName.toLowerCase().includes(nameFilter);
+                    const dateMatch = !dateFilterValue || row.ClassDate === dateFilterValue;
+                    return nameMatch && dateMatch;
+                });
+
+                const sortedData = sortData(filteredData);
+                updateTable(sortedData);
+            }
+
+            function sortData(data) {
+                return data.sort((a, b) => {
+                    if (a[sortColumn] < b[sortColumn]) return sortDirection === 'asc' ? -1 : 1;
+                    if (a[sortColumn] > b[sortColumn]) return sortDirection === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }
+
+            function handleSort(event) {
+                const column = event.currentTarget.dataset.column;
+                if (sortColumn === column) {
+                    sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                } else {
+                    sortColumn = column;
+                    sortDirection = 'asc';
+                }
+                filterAttendance();
+            }
+
+            function updateSortIcons() {
+                document.querySelectorAll('.sort-icon').forEach(icon => {
+                    icon.innerHTML = '';
+                });
+                const currentIcon = document.querySelector(`th[data-column="${sortColumn}"] .sort-icon`);
+                currentIcon.innerHTML = sortDirection === 'asc' ? '&#9650;' : '&#9660;';
+            }
+
+            studentFilter.addEventListener('input', filterAttendance);
+            dateFilter.addEventListener('change', filterAttendance);
+
+            studentDropdown.addEventListener('click', function (e) {
+                if (e.target && e.target.nodeName === 'A') {
+                    studentFilter.value = e.target.textContent;
+                    filterAttendance();
+                }
+            });
+
+            function handleFormSubmit(event) {
+                event.preventDefault();
+
+                const formData = new FormData(event.target);
+                const updatedAttendance = [];
+
+                formData.forEach((value, key) => {
+                    if (key.startsWith('status_') || key.startsWith('reason_')) {
+                        const [type, studentId, classId] = key.split('_');
+
+                        let record = updatedAttendance.find(r => r.studentId === studentId && r.classId === classId);
+                        if (!record) {
+                            record = { studentId, classId };
+                            updatedAttendance.push(record);
                         }
-                    });
 
-                    fetch('/update_attendance', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(updatedAttendance),
-                    })
+                        if (type === 'status') {
+                            record.status = value;
+                        } else if (type === 'reason') {
+                            record.reason = value;
+                        }
+                    }
+                });
+
+                fetch('/update_attendance', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(updatedAttendance),
+                })
                     .then(response => response.json())
                     .then(data => {
                         if (data.status === 'success') {
                             alert('Attendance updated successfully');
-                            location.reload(); // Reload the page to show updated data
+                            // Update the local attendance data
+                            updatedAttendance.forEach(update => {
+                                const record = attendanceData.find(r => r.StudentID == update.studentId && r.ClassID == update.classId);
+                                if (record) {
+                                    record.AttendanceStatus = update.status;
+                                    record.Reason = update.reason;
+                                }
+                            });
+                            // Refresh the table with updated data
+                            filterAttendance();
                         } else {
                             alert('Failed to update attendance');
                         }
@@ -157,9 +279,12 @@
                         console.error('Error:', error);
                         alert('An error occurred while updating attendance');
                     });
-                });
             }
+
+            // Initial table update
+            filterAttendance();
         });
-    </script>
-</body>
-</html>
+        </script>
+    </body>
+
+    </html>

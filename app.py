@@ -225,13 +225,18 @@ Allows the viewing of all attendance
 """
 
 
-@app.route('/overall_attendance')
+@app.route('/overall_attendance', methods=['GET'])
 def overall_attendance():
     logging.debug("Entering overall_attendance route")
     try:
-        conn = get_db_connection()
+        conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor(dictionary=True)
 
+        # Fetch all student names
+        cursor.execute("SELECT DISTINCT StudentName FROM Student ORDER BY StudentName")
+        all_students = [row['StudentName'] for row in cursor.fetchall()]
+
+        # Fetch attendance data (without filtering initially)
         query = """
         SELECT 
             s.StudentID,
@@ -264,7 +269,6 @@ def overall_attendance():
         for row in attendance_data:
             row['ClassDate'] = row['ClassDate'].strftime('%Y-%m-%d')
             if isinstance(row['TimeAttended'], timedelta):
-                # Convert timedelta to a formatted time string
                 total_seconds = int(row['TimeAttended'].total_seconds())
                 hours, remainder = divmod(total_seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
@@ -276,7 +280,7 @@ def overall_attendance():
         conn.close()
 
         logging.debug("Rendering attendance.html template")
-        return render_template('attendance.html', attendance_data=attendance_data)
+        return render_template('attendance.html', attendance_data=attendance_data, all_students=all_students)
     except Exception as e:
         logging.error(f"Error in overall_attendance route: {str(e)}")
         return f"An error occurred: {str(e)}", 500
