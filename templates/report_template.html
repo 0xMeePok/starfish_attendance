@@ -17,7 +17,7 @@
             margin-bottom: 20px;
         }
         table {
-            width: 100%;
+            width: 40%;
             border-collapse: collapse;
             margin-bottom: 20px;
         }
@@ -29,6 +29,34 @@
         th {
             background-color: #f2f2f2;
         }
+        .logo {
+            width: 200px;
+            margin-bottom: 1px;
+        }
+        .remarks-input {
+            width: 60%; /* Full width for the input box */
+            height: 50px; /* Set height for the textarea */
+            padding: 10px; /* Padding for better appearance */
+            border-style: none; 
+            border-color: transparent; 
+            overflow: auto;   
+        }
+        .generate-report-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 20px 30px;
+            background-color: #007bff; /* Bootstrap primary color */
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            z-index: 1000; /* Ensure it stays on top */
+            font-size: 20px;
+        }
+        .generate-report-btn:hover {
+            background-color: #0056b3; /* Darker shade on hover */
+        }
     </style>
 </head>
 <body>
@@ -36,14 +64,16 @@
         <div>Our Ref: {{ data.Ref_No }}</div>
         <div>{{ current_date }}</div>
     </div>
-
+    <img class="logo" src="{{ url_for('static', filename='starfish_text.jpg') }}" alt="Starfish Logo w Text" />
+    <p>A community service project by Society of Starfish Singapore</p>
+    <br>
     <p>Dear {{ data.Name }},</p>
 
     <h2>Progress Report for Project Starfish, Term X (Period: {{ data.Start_Date }} to {{ data.End_Date }})</h2>
 
     <h3>1. ACADEMIC PERFORMANCE</h3>
     <p>The GCE NT Level examinations follows the grading below:</p>
-    <table>
+    <table style="width: 25%; font-size:12px;">
         <tr>
             <th>Scores</th>
             <th>Grade</th>
@@ -55,7 +85,7 @@
             <td>1</td>
         </tr>
         <tr>
-            <td>70 - 74{{ data.Band2Max }}</td>
+            <td>70 - 74</td>
             <td>B</td>
             <td>2</td>
         </tr>
@@ -158,14 +188,25 @@
     <p>* Attendance rate will be counted with consideration of VR (valid reason) i.e. MC shown, or other reasons supported with documentation</p>
 
     <h3>3. REMARKS</h3>
-    <p>{{ data.TeacherRemarks }}</p>
+    <textarea class="remarks-input" placeholder="Enter remarks here...">ADD YOUR REMARKS HERE AND CLICK GENERATE REPORT</textarea>
 
     <p>We look forward to supporting you in your academic journey as you approach the N-levels.</p>
 
     <p>Yours sincerely,</p>
-    <br>
+    <img style="width: 120px;" src="{{ url_for('static', filename='siti.png') }}" alt="Siti Sig" />
     <p>Siti Yariyati<br>
     Course Manager<br>
     Project Starfish c/o Foundation of Rotary Clubs (Singapore)</p>
+
+    <!-- Sticky Button -->
+    <button class="generate-report-btn" onclick="generateReport()">Fill Up Remarks first before clicking me to Generate Report!</button>
+
+    <script>
+        function generateReport() {
+            // Hide the button when clicked
+            document.querySelector('.generate-report-btn').style.display = 'none';
+            // You can add additional logic here to handle report generation
+        }
+    </script>
 </body>
 </html>

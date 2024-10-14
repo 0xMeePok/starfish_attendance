@@ -933,9 +933,9 @@ def retrieveDetails(student_id, year):
     marks_data['avg'] = round(avg['avg'],2)
 
 
-    cursor.execute("""
+    # cursor.execute("""
 
-    """, (student_id, year))
+    # """, (student_id, year))
     
 
 
