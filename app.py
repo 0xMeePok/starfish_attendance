@@ -10,7 +10,6 @@ import io
 import logging
 from io import StringIO
 from werkzeug.security import generate_password_hash, check_password_hash
-from functools import wraps
 
 # Load environment variables from the .env file
 load_dotenv()
@@ -225,18 +224,13 @@ Allows the viewing of all attendance
 """
 
 
-@app.route('/overall_attendance', methods=['GET'])
+@app.route('/overall_attendance')
 def overall_attendance():
     logging.debug("Entering overall_attendance route")
     try:
-        conn = mysql.connector.connect(**db_config)
+        conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # Fetch all student names
-        cursor.execute("SELECT DISTINCT StudentName FROM Student ORDER BY StudentName")
-        all_students = [row['StudentName'] for row in cursor.fetchall()]
-
-        # Fetch attendance data (without filtering initially)
         query = """
         SELECT 
             s.StudentID,
@@ -269,6 +263,7 @@ def overall_attendance():
         for row in attendance_data:
             row['ClassDate'] = row['ClassDate'].strftime('%Y-%m-%d')
             if isinstance(row['TimeAttended'], timedelta):
+                # Convert timedelta to a formatted time string
                 total_seconds = int(row['TimeAttended'].total_seconds())
                 hours, remainder = divmod(total_seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
@@ -280,7 +275,7 @@ def overall_attendance():
         conn.close()
 
         logging.debug("Rendering attendance.html template")
-        return render_template('attendance.html', attendance_data=attendance_data, all_students=all_students)
+        return render_template('attendance.html', attendance_data=attendance_data)
     except Exception as e:
         logging.error(f"Error in overall_attendance route: {str(e)}")
         return f"An error occurred: {str(e)}", 500
@@ -667,7 +662,7 @@ def export_marks():
 
         # Fetch marks data for the selected student
         cursor.execute("""
-            SELECT Subject, TestType, MarksObtained, TotalMarks, Weightage
+            SELECT SubjectID, TestType, MarksObtained, TotalMarks, Weightage
             FROM Marks
             WHERE StudentID = %s
         """, (selected_student_id,))
@@ -678,7 +673,7 @@ def export_marks():
         writer = csv.writer(output)
 
         # Write header
-        writer.writerow(["Subject", "Test Type", "Marks Obtained", "Total Marks", "Weightage"])
+        writer.writerow(["SubjectID", "Test Type", "Marks Obtained", "Total Marks", "Weightage"])
 
         # Write marks data
         for row in marks_data:
@@ -850,6 +845,146 @@ def register():
 @app.route('/error', methods=['GET', 'POST'])
 def errorPage(err):
     return render_template('error.html', error=err)
+
+@app.route('/generate_report', methods=['GET', 'POST'])
+def generate_report():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT ClassDate FROM classes")
+    classDates = cursor.fetchall()
+    years = [row[0].year for row in classDates]
+    max_year = min(years)
+    min_year = min(years)
+    years = []
+
+    list_of_years = range(min_year, max_year+1)
+    
+    for n in list_of_years:
+        years.append(n)
+
+     # Fetch all students for the dropdown
+    cursor.execute("SELECT StudentID, StudentName FROM Student")
+    students = cursor.fetchall()
+
+    if request.method == 'POST':
+        # run pdf generating report function
+        selected_year = request.form.get('selected_year')
+        selected_student_id = request.form.get('selected_student')
+
+        # querying all the data to popualate the fields
+        retrieveDetails(selected_student_id, selected_year)
+
+        data = {"Name": selected_student_id, "Ref_No": selected_year, }
+
+        return render_template('report_template.html', data = data)
+
+    else:
+        return render_template('generate_report.html', students = students, years = years)
+    
+def retrieveDetails(student_id, year):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # Execute the SQL query
+    try:
+        cursor.execute("""
+            SELECT DISTINCT StudentID, SubjectName, MarksObtained, TotalMarks, Weightage
+            FROM (
+                SELECT m.StudentID, SubjectName, m.MarksObtained, m.TotalMarks, m.Weightage, c.classDate
+                FROM attendance a
+                JOIN classes c ON a.classID = c.classID
+                JOIN marks m ON c.subjectID = m.SubjectID
+                JOIN subject s on s.SubjectID = m.subjectID
+            ) AS StudentMarks
+            WHERE StudentID = %s
+            AND YEAR(classDate) = %s;
+        """, (student_id, year))
+        
+        # Fetch all results
+        results = cursor.fetchall()
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    
+    # Initialize variables to calculate overall marks
+    marks_data = {}
+    avg = {}
+
+    for row in results:
+        student_id, subject, marks_obtained, total_marks, weightage = row
+        
+        if subject not in marks_data:
+            if marks_obtained == 0:
+                marks_data[subject] = 0
+            else:
+                marks_data[subject] = marks_obtained / total_marks * weightage
+        else:
+            if marks_obtained == 0:
+                marks_data[subject] += 0
+            else:
+                marks_data[subject] += marks_obtained / total_marks * weightage
+
+    for n in marks_data:
+        if marks_data[n] != 0:
+            if avg == {}: 
+                avg['avg'] = marks_data[n]/len(marks_data)
+            else:
+                avg['avg'] += marks_data[n]/len(marks_data)
+    marks_data['avg'] = round(avg['avg'],2)
+
+
+    cursor.execute("""
+
+    """, (student_id, year))
+    
+
+
+    final_data = [marks_data]
+    cursor.close()
+    conn.close()
+
+    print(marks_data) # Return overall marks and the raw results if needed
+
+
+
+
+
+
+
+@app.route('/get_students_by_year', methods=['GET'])
+def get_students_by_year():
+    selected_year = request.args.get('year')
+
+    if not selected_year:
+        return jsonify({"error": "Year is required"}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Query to fetch students based on the selected intake year
+        query = """
+        SELECT DISTINCT s.StudentID, s.StudentName
+        FROM student s
+        JOIN attendance a ON s.StudentID = a.StudentID
+        JOIN classes c ON c.ClassID = a.ClassID
+        WHERE YEAR(c.ClassDate) = %s
+        """
+
+        cursor.execute(query, (selected_year,))
+        data = cursor.fetchall()
+
+        # Format the results as a list of dictionaries
+        student_list = [{"StudentID": student[0], "StudentName": student[1]} for student in data]
+
+        return student_list
+
+    except Exception as e:
+        print(f"Error: {str(e)}")  # Log the error for debugging
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 
 # session check for each route
