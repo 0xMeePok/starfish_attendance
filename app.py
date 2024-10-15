@@ -61,68 +61,59 @@ Creation of Classes to map:
 
 
 """
-@app.route("/create_subject_class", methods=["GET", "POST"])
+@app.route('/create_subject_class', methods=['GET', 'POST'])
 def create_subject_class():
-    conn = get_db_connection()
+    conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
 
-    # Fetch all existing subjects
-    cursor.execute("SELECT SubjectID, SubjectName FROM Subject")
+    if request.method == 'POST':
+        subject_id = request.form.get('subject_id')
+        new_subject = request.form.get('new_subject')
+        class_date = request.form.get('class_date')
+
+        try:
+            # If a new subject is provided, insert it
+            if new_subject:
+                cursor.execute("INSERT INTO Subject (SubjectName) VALUES (%s)", (new_subject,))
+                conn.commit()
+                subject_id = cursor.lastrowid
+
+            # Insert the new class
+            cursor.execute("INSERT INTO Classes (ClassDate, SubjectID) VALUES (%s, %s)", (class_date, subject_id))
+            conn.commit()
+            new_class_id = cursor.lastrowid
+
+            # Get all students
+            cursor.execute("SELECT StudentID FROM Student")
+            students = cursor.fetchall()
+
+            # Create attendance records for all students
+            for student in students:
+                cursor.execute("""
+                    INSERT INTO Attendance (StudentID, ClassID, AttendanceStatus)
+                    VALUES (%s, %s, 'Absent')
+                """, (student[0], new_class_id))
+            
+            conn.commit()
+
+            flash('New class created successfully and attendance records initialized for all students.', 'success')
+        except mysql.connector.Error as err:
+            conn.rollback()
+            flash(f'Error creating class: {err}', 'error')
+        finally:
+            cursor.close()
+            conn.close()
+
+        return redirect(url_for('create_subject_class'))
+
+    # Fetch existing subjects for the dropdown
+    cursor.execute("SELECT SubjectID, SubjectName FROM Subject ORDER BY SubjectName")
     subjects = cursor.fetchall()
 
     cursor.close()
     conn.close()
 
-    if request.method == "POST":
-        # Check for both the selected subject and the manually entered one
-        selected_subject_id = request.form.get("selected_subject")  # Existing subject
-        subject_name = request.form.get("subject_name")  # New subject entered
-
-        # Get form data for the class date
-        class_date = request.form["class_date"]
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        # If the user enters a new subject, check if it already exists
-        if not selected_subject_id and subject_name:
-            check_subject_query = """
-            SELECT SubjectID FROM Subject WHERE SubjectName = %s
-            """
-            cursor.execute(check_subject_query, (subject_name,))
-            existing_subject = cursor.fetchone()
-
-            if existing_subject:
-                # If subject exists, use its ID
-                subject_id = existing_subject[0]
-            else:
-                # If the subject does not exist, insert it
-                insert_subject_query = """
-                INSERT INTO Subject (SubjectName)
-                VALUES (%s)
-                """
-                cursor.execute(insert_subject_query, (subject_name,))
-                subject_id = cursor.lastrowid  # Get the newly inserted SubjectID
-        else:
-            # Use the selected subject ID if it was chosen
-            subject_id = selected_subject_id
-
-        # Insert class with ClassDate and SubjectID
-        insert_class_query = """
-        INSERT INTO Classes (ClassDate, SubjectID)
-        VALUES (%s, %s)
-        """
-        cursor.execute(insert_class_query, (class_date, subject_id))
-
-        conn.commit()
-        cursor.close()
-        conn.close()
-
-        return jsonify({"status": "success", "message": "Subject and class created successfully!"})
-
-    return render_template("create_subject_class.html", subjects=subjects)
-
-
+    return render_template('create_subject_class.html', subjects=subjects)
 
 
 """
