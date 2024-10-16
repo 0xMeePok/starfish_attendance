@@ -70,7 +70,7 @@ def handle_reason(message, reason):
     bot.register_next_step_handler(message, confirmation)
 
 def run_flask():
-    app.run(port=5000, threaded=True)
+    app.run(port=5001, threaded=True)
 
 def run_bot():
     bot.polling(none_stop=True)

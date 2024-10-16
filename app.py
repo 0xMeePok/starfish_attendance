@@ -1,5 +1,7 @@
 from flask import Flask, render_template, jsonify, request, redirect, url_for, flash, make_response, render_template, session
 import mysql.connector
+import random
+import string
 from dotenv import load_dotenv
 from datetime import datetime, timedelta,time
 import pandas as pd
@@ -101,13 +103,9 @@ def create_subject_class():
 
     return render_template('create_subject_class.html', subjects=subjects)
 
+def generate_channel_id():
+    return 'channel_' + ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
 
-"""
-Enrolling of students to classes
-
-CSV Format
-StudentID, ClassID
-"""
 @app.route('/enroll_student', methods=['GET', 'POST'])
 def enroll_student():
     if request.method == 'POST':
@@ -118,17 +116,26 @@ def enroll_student():
         social_worker_phone = request.form['social_worker_phone']
         parent_email = request.form['parent_email']
         parent_phone = request.form['parent_phone']
+        telegram_username = request.form['telegram_username']
 
         conn = get_db_connection()
         cursor = conn.cursor()
 
         try:
+            # Generate a unique channel_id
+            channel_id = generate_channel_id()
+            while True:
+                cursor.execute("SELECT COUNT(*) FROM Student WHERE ChannelID = %s", (channel_id,))
+                if cursor.fetchone()[0] == 0:
+                    break
+                channel_id = generate_channel_id()
+
             # Insert the new student into the database
             insert_query = """
-            INSERT INTO Student (StudentName, Email, PhoneNumber, SocialWorkerEmail, SocialWorkerPhone, ParentEmail, ParentPhone)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO Student (StudentName, Email, PhoneNumber, SocialWorkerEmail, SocialWorkerPhone, ParentEmail, ParentPhone, TelegramUsername, ChannelID)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
-            cursor.execute(insert_query, (student_name, email, phone_number, social_worker_email, social_worker_phone, parent_email, parent_phone))
+            cursor.execute(insert_query, (student_name, email, phone_number, social_worker_email, social_worker_phone, parent_email, parent_phone, telegram_username, channel_id))
             conn.commit()
 
             flash('Student enrolled successfully!', 'success')
@@ -165,18 +172,26 @@ def upload_student_enrollment():
             cursor = conn.cursor()
 
             for row in csv_reader:
-                if len(row) != 7:
-                    flash(f'Invalid row in CSV: {row}. Expected 7 fields.', 'error')
+                if len(row) != 8:
+                    flash(f'Invalid row in CSV: {row}. Expected 8 fields.', 'error')
                     continue
 
-                student_name, email, phone_number, social_worker_email, social_worker_phone, parent_email, parent_phone = row
+                student_name, email, phone_number, social_worker_email, social_worker_phone, parent_email, parent_phone, telegram_username = row
+
+                # Generate a unique channel_id
+                channel_id = generate_channel_id()
+                while True:
+                    cursor.execute("SELECT COUNT(*) FROM Student WHERE ChannelID = %s", (channel_id,))
+                    if cursor.fetchone()[0] == 0:
+                        break
+                    channel_id = generate_channel_id()
 
                 # Insert the new student into the database
                 insert_query = """
-                INSERT INTO Student (StudentName, Email, PhoneNumber, SocialWorkerEmail, SocialWorkerPhone, ParentEmail, ParentPhone)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO Student (StudentName, Email, PhoneNumber, SocialWorkerEmail, SocialWorkerPhone, ParentEmail, ParentPhone, TelegramUsername, ChannelID)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
-                cursor.execute(insert_query, (student_name, email, phone_number, social_worker_email, social_worker_phone, parent_email, parent_phone))
+                cursor.execute(insert_query, (student_name, email, phone_number, social_worker_email, social_worker_phone, parent_email, parent_phone, telegram_username, channel_id))
 
             conn.commit()
             cursor.close()

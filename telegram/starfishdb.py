@@ -26,7 +26,7 @@ def with_db_connection(func):
 class StarfishDB:
     def __init__(self):
         """Initializes the StarfishDB class."""
-        self.token = os.getenv('TG_TOKEN')
+        self.token = os.getenv('BOT_TOKEN')
         self.conn, self.cursor = None, None
     
     @with_db_connection
