@@ -83,20 +83,6 @@ def create_subject_class():
             conn.commit()
             new_class_id = cursor.lastrowid
 
-            # Get all students
-            cursor.execute("SELECT StudentID FROM Student")
-            students = cursor.fetchall()
-
-            # Create attendance records for all students
-            for student in students:
-                cursor.execute("""
-                    INSERT INTO Attendance (StudentID, ClassID, AttendanceStatus)
-                    VALUES (%s, %s, 'Absent')
-                """, (student[0], new_class_id))
-            
-            conn.commit()
-
-            flash('New class created successfully and attendance records initialized for all students.', 'success')
         except mysql.connector.Error as err:
             conn.rollback()
             flash(f'Error creating class: {err}', 'error')
@@ -203,6 +189,55 @@ def upload_student_enrollment():
         flash('Invalid file type. Please upload a CSV file.', 'error')
 
     return redirect(url_for('enroll_student'))
+
+
+@app.route('/enroll_classes', methods=['GET', 'POST'])
+def enroll_classes():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Fetch all students for the dropdown
+    cursor.execute("SELECT StudentID, StudentName FROM Student")
+    students = cursor.fetchall()
+
+    # Fetch all subjects for the dropdown
+    cursor.execute("SELECT SubjectID, SubjectName FROM Subject")
+    subjects = cursor.fetchall()
+
+    if request.method == 'POST':
+        student_id = request.form['student_id']
+        subject_id = request.form['subject_id']
+
+        # Enroll the student in the subject (Insert into StudentSubjects)
+        cursor.execute("""
+            INSERT INTO StudentSubjects (StudentID, SubjectID)
+            VALUES (%s, %s)
+        """, (student_id, subject_id))
+        
+        # Get all classes for the given SubjectID
+        cursor.execute("""
+            SELECT ClassID FROM Classes WHERE SubjectID = %s
+        """, (subject_id,))
+        classes = cursor.fetchall()
+
+        # Create attendance records for the student for each class
+        for class_record in classes:
+            cursor.execute("""
+                INSERT INTO Attendance (StudentID, ClassID, AttendanceStatus)
+                VALUES (%s, %s, 'Absent')
+            """, (student_id, class_record['ClassID']))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return redirect(url_for('enroll_classes'))
+
+    cursor.close()
+    conn.close()
+    
+    return render_template('enroll_classes.html', students=students, subjects=subjects)
+
 
 
 # Attendance related functions
