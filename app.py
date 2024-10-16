@@ -272,44 +272,6 @@ def overall_attendance():
         return f"An error occurred: {str(e)}", 500
 
 
-@app.route("/attendance/<int:class_id>", methods=["GET"])
-def attendance_for_specific_class(class_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    # Modify the query to filter by ClassID
-    query = """
-    SELECT 
-    a.ClassId, 
-    s.StudentID, 
-    s.`Student Name`, 
-    c.ClassName,
-    c.Date, 
-    a.TimeAttended,  -- Add this line to select TimeAttended
-    a.Attended, 
-    a.Remark, 
-    a.Reason
-    FROM 
-        Attendance a
-    JOIN 
-        Student s ON a.StudentId = s.StudentID
-    JOIN 
-        Classes c ON a.ClassId = c.ClassId
-    WHERE 
-        a.ClassId = %s;
-
-    """
-
-    cursor.execute(query, (class_id,))
-    attendance_data = cursor.fetchall()
-
-    cursor.close()
-    conn.close()
-
-    return render_template(
-        "class_attendance.html", attendance_data=attendance_data, class_id=class_id
-    )
-
 
 @app.route('/update_attendance', methods=['POST'])
 def update_attendance():
