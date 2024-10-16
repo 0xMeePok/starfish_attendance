@@ -329,6 +329,7 @@ def update_attendance():
             student_id = record['StudentID']
             class_id = record['ClassID']
             new_status = record['AttendanceStatus']
+            time_attended = record.get('TimeAttended', '')  # Get the time from the request
             reason = record.get('Reason', '')
 
             # Fetch the current status of the student for the specific class
@@ -344,16 +345,20 @@ def update_attendance():
 
             current_status, current_time_attended = current_record
 
-            # Only update TimeAttended if the status changes to 'Present' and was not 'Present' before
-            if current_status != 'Present' and new_status == 'Present':
-                time_attended = datetime.now().strftime('%H:%M:%S')  # Set to current time
-                logging.info(f"TimeAttended updated to current time: {time_attended}")
+            # Check if time_attended was provided in the request
+            if not time_attended:
+                # Only update TimeAttended if the status changes to 'Present' and was not 'Present' before
+                if current_status != 'Present' and new_status == 'Present':
+                    time_attended = datetime.now().strftime('%H:%M:%S')  # Set to current time
+                    logging.info(f"TimeAttended updated to current time: {time_attended}")
+                else:
+                    time_attended = current_time_attended  # Retain the current time
             else:
-                time_attended = current_time_attended  # Retain the current time
+                logging.info(f"TimeAttended manually updated to: {time_attended}")
 
             logging.info(f"Updating record: StudentID={student_id}, ClassID={class_id}, Status={new_status}, Time={time_attended}, Reason={reason}")
 
-            # Update the attendance record, but only modify TimeAttended if it's necessary
+            # Update the attendance record
             update_query = """
             UPDATE Attendance
             SET AttendanceStatus = %s, TimeAttended = %s, Reason = %s
@@ -373,7 +378,7 @@ def update_attendance():
         cursor.close()
         conn.close()
         logging.info("Database connection closed")
-        
+
 
 @app.route("/update_remark_reason", methods=["POST"])
 def update_remark_reason():
