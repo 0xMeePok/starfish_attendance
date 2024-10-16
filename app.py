@@ -478,6 +478,10 @@ def create_marks():
     cursor.execute("SELECT StudentID, StudentName FROM Student")
     students = cursor.fetchall()
 
+    # Fetch all subjects for the dropdown
+    cursor.execute("SELECT SubjectID, SubjectName FROM Subject")
+    subjects = cursor.fetchall()
+
     if request.method == 'POST':
         subject = request.form['subject']
         test_type = request.form['test_type']
@@ -502,7 +506,9 @@ def create_marks():
     cursor.close()
     conn.close()
 
-    return render_template('create_marks.html', students=students)
+    # Pass both students and subjects to the template
+    return render_template('create_marks.html', students=students, subjects=subjects)
+
 
 
 @app.route("/export_class_attendance", methods=["GET", "POST"])

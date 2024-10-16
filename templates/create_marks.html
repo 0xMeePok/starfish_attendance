@@ -61,11 +61,13 @@
             <div class="mb-3">
                 <label for="subject" class="form-label">Subject</label>
                 <select class="form-select" id="subject" name="subject" required>
-                    <option value="Math">Math</option>
-                    <option value="English">English</option>
-                    <option value="Science">Science</option>
+                    <option value="">Select a subject</option>
+                    {% for subject in subjects %}
+                    <option value="{{ subject.SubjectID }}">{{ subject.SubjectName }}</option>
+                    {% endfor %}
                 </select>
             </div>
+            
             <div class="mb-3">
                 <label for="test_type" class="form-label">Test Type</label>
                 <input type="text" class="form-control" id="test_type" name="test_type" required>
