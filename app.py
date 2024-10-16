@@ -328,19 +328,38 @@ def update_attendance():
         for record in data:
             student_id = record['StudentID']
             class_id = record['ClassID']
-            status = record['AttendanceStatus']
-            time_attended = record.get('TimeAttended', '')
+            new_status = record['AttendanceStatus']
             reason = record.get('Reason', '')
 
-            logging.info(f"Updating record: StudentID={student_id}, ClassID={class_id}, Status={status}, Time={time_attended}, Reason={reason}")
+            # Fetch the current status of the student for the specific class
+            cursor.execute("""
+                SELECT AttendanceStatus, TimeAttended FROM Attendance
+                WHERE StudentID = %s AND ClassID = %s
+            """, (student_id, class_id))
+            current_record = cursor.fetchone()
 
-            # Update the attendance record
+            if not current_record:
+                logging.error(f"No existing attendance record found for StudentID={student_id}, ClassID={class_id}")
+                continue
+
+            current_status, current_time_attended = current_record
+
+            # Only update TimeAttended if the status changes to 'Present' and was not 'Present' before
+            if current_status != 'Present' and new_status == 'Present':
+                time_attended = datetime.now().strftime('%H:%M:%S')  # Set to current time
+                logging.info(f"TimeAttended updated to current time: {time_attended}")
+            else:
+                time_attended = current_time_attended  # Retain the current time
+
+            logging.info(f"Updating record: StudentID={student_id}, ClassID={class_id}, Status={new_status}, Time={time_attended}, Reason={reason}")
+
+            # Update the attendance record, but only modify TimeAttended if it's necessary
             update_query = """
             UPDATE Attendance
             SET AttendanceStatus = %s, TimeAttended = %s, Reason = %s
             WHERE StudentID = %s AND ClassID = %s
             """
-            cursor.execute(update_query, (status, time_attended, reason, student_id, class_id))
+            cursor.execute(update_query, (new_status, time_attended, reason, student_id, class_id))
             logging.info(f"Rows affected: {cursor.rowcount}")
 
         conn.commit()
@@ -354,6 +373,7 @@ def update_attendance():
         cursor.close()
         conn.close()
         logging.info("Database connection closed")
+        
 
 @app.route("/update_remark_reason", methods=["POST"])
 def update_remark_reason():
