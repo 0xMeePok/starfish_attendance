@@ -257,6 +257,14 @@ def overall_attendance():
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
+        # Fetch all student names
+        cursor.execute("SELECT DISTINCT StudentName FROM Student ORDER BY StudentName")
+        all_students = [row['StudentName'] for row in cursor.fetchall()]
+
+        # Fetch all subject names
+        cursor.execute("SELECT DISTINCT SubjectName FROM Subject ORDER BY SubjectName")
+        all_subjects = [row['SubjectName'] for row in cursor.fetchall()]
+
         query = """
         SELECT 
             s.StudentID,
@@ -289,54 +297,63 @@ def overall_attendance():
         for row in attendance_data:
             row['ClassDate'] = row['ClassDate'].strftime('%Y-%m-%d')
             if isinstance(row['TimeAttended'], timedelta):
-                # Convert timedelta to a formatted time string
                 total_seconds = int(row['TimeAttended'].total_seconds())
                 hours, remainder = divmod(total_seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
-                row['TimeAttended'] = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                row['TimeAttended'] = f"{hours:02d}:{minutes:02d}"
             elif row['TimeAttended'] is None:
-                row['TimeAttended'] = 'N/A'
+                row['TimeAttended'] = ''
 
         cursor.close()
         conn.close()
 
         logging.debug("Rendering attendance.html template")
-        return render_template('attendance.html', attendance_data=attendance_data)
+        return render_template('attendance.html', 
+                               attendance_data=attendance_data, 
+                               all_students=all_students,
+                               all_subjects=all_subjects)
     except Exception as e:
         logging.error(f"Error in overall_attendance route: {str(e)}")
         return f"An error occurred: {str(e)}", 500
-
-
-
+    
 @app.route('/update_attendance', methods=['POST'])
 def update_attendance():
     data = request.json
+    logging.info(f"Received data: {data}")
+    
     conn = get_db_connection()
     cursor = conn.cursor()
 
     try:
         for record in data:
-            student_id = record['studentId']
-            class_id = record['classId']
-            status = record['status']
-            reason = record.get('reason', '')
+            student_id = record['StudentID']
+            class_id = record['ClassID']
+            status = record['AttendanceStatus']
+            time_attended = record.get('TimeAttended', '')
+            reason = record.get('Reason', '')
+
+            logging.info(f"Updating record: StudentID={student_id}, ClassID={class_id}, Status={status}, Time={time_attended}, Reason={reason}")
 
             # Update the attendance record
             update_query = """
             UPDATE Attendance
-            SET AttendanceStatus = %s, Reason = %s
+            SET AttendanceStatus = %s, TimeAttended = %s, Reason = %s
             WHERE StudentID = %s AND ClassID = %s
             """
-            cursor.execute(update_query, (status, reason, student_id, class_id))
+            cursor.execute(update_query, (status, time_attended, reason, student_id, class_id))
+            logging.info(f"Rows affected: {cursor.rowcount}")
 
         conn.commit()
+        logging.info("Database committed successfully")
         return jsonify({"status": "success"})
     except Exception as e:
-        logging.error(f"Error updating attendance: {e}")
+        logging.error(f"Error updating attendance: {str(e)}")
+        conn.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
     finally:
         cursor.close()
         conn.close()
+        logging.info("Database connection closed")
 
 @app.route("/update_remark_reason", methods=["POST"])
 def update_remark_reason():
