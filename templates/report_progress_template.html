@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ data.name[0][0]}}_Progress_Report_{{ data.year }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+        }
+        .header {
+            display: block;
+            margin-bottom: 60px;
+        }
+        table {
+            width: 40%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .logo {
+            width: 200px;
+            margin-bottom: 1px;
+        }
+        #remarks-input {
+            width: 100%; /* Full width for the input box */
+            height: 40px; /* Set height for the textarea */
+            border-style: none; 
+            border-color: transparent;    
+        }
+        #generate-report-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 20px 30px;
+            background-color: green; /* Bootstrap primary color */
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            z-index: 1000; /* Ensure it stays on top */
+            font-size: 20px;
+            display:none;
+        }
+        #prompt {
+            position: fixed;
+            top: 1px;
+            right: 20px;
+            padding: 20px 30px;
+            background-color: burlywood; /* Bootstrap primary color */
+            color: white;
+            border: none;
+            border-radius: 10px;
+            z-index: 1000; /* Ensure it stays on top */
+            font-size: 20px;
+            display: block;
+        }
+        #generate-report-btn:hover {
+            background-color: lightgreen; /* Darker shade on hover */
+        }
+    </style>
+    <!-- Add this line in the <head> section to include html2pdf.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+    <div class="header">
+        <!-- <div>{{ data.Ref_No }}</div>  -->
+        <!-- <div id="date"></div> -->
+        <img class="logo" src="{{ url_for('static', filename='starfish_text.jpg') }}" alt="Starfish Logo w Text" />
+        <p>A community service project by Society of Starfish Singapore</p>
+    </div>
+    <p>Dear {{ data.name[0][0]}},</p>
+
+    <h2>Progress Report for Project Starfish, Year {{data.year}}</h2>
+
+    <h3>1. ACADEMIC PERFORMANCE</h3>
+    <p>The GCE NT Level examinations follows the grading below:</p>
+    <table style="width: 25%; font-size:12px;">
+        <tr>
+            <th>Scores</th>
+            <th>Grade</th>
+            <th>Point</th>
+        </tr>
+        <tr>
+            <td>75 - 100</td>
+            <td>A</td>
+            <td>1</td>
+        </tr>
+        <tr>
+            <td>70 - 74</td>
+            <td>B</td>
+            <td>2</td>
+        </tr>
+        <tr>
+            <td>60 - 73</td>
+            <td>C</td>
+            <td>3</td>
+        </tr>
+        <tr>
+            <td>50 - 59</td>
+            <td>D</td>
+            <td>4</td>
+        </tr>
+        <tr>
+            <td>0 - 49</td>
+            <td>E</td>
+            <td>5</td>
+        </tr>
+    </table>
+
+    <p>The following are your proficiency test results:</p>
+    <table>
+        <tr>
+            <th>No.</th>
+            <th>Subject</th>
+            <th>Marks</th>
+            <th>Overall</th>
+            <th>Grade</th>
+        </tr>
+        <tr>
+            <td>1</td>
+            <td>English</td>
+            <td>{{ data.marks['English'][0] }} / 100</td>
+            <td>{{ data.marks['English'][0] }}%</td>
+            <td>{{ data.marks['English'][1] }}</td>
+        </tr>
+        <tr>
+            <td>2</td>
+            <td>Mathematics</td>
+            <td>{{ data.marks['Math'][0] }} / 100</td>
+            <td>{{ data.marks['Math'][0] }}%</td>
+            <td>{{ data.marks['Math'][1] }}</td>
+        </tr>
+        <tr>
+            <td>3</td>
+            <td>Science</td>
+            <td>{{ data.marks['Science'][0] }} / 100</td>
+            <td>{{ data.marks['Science'][0] }}%</td>
+            <td>{{ data.marks['Science'][1] }}</td>
+        </tr>
+        {% if 'Mother Tongue' in data.marks %}
+        <tr>
+            <td>4</td>
+            <td>Mother Tongue</td>
+            <td>{{ data.marks['Mother Tongue'][0] }} / 100</td>
+            <td>{{ data.marks['Mother Tongue'][0] }}%</td>
+            <td>{{ data.marks['Mother Tongue'][1] }}</td>
+        </tr>
+        {% endif %}
+        <tr>
+            <td colspan="2">Average of {{ data.marks | length }} subjects</td>
+            <td>-</td>
+            {% if 'Mother Tongue' in data.marks %}
+                <td>{{ ((data.marks['English'][0] + data.marks['Math'][0] + data.marks['Science'][0] + data.marks['Mother Tongue'][0]) / (data.marks | length)) | round(2) }}%</td>
+            {% else %}
+                <td>{{ ((data.marks['English'][0] + data.marks['Math'][0] + data.marks['Science'][0]) / (data.marks | length)) | round(2) }}%</td>
+            {% endif %}
+            <td>-</td>
+        </tr>
+    </table>
+
+    <h3>2. ATTENDANCE REPORT</h3>
+    <p>The following areas reflect your attendance for the period of the Foundation Programme.</p>
+    <table>
+        <tr>
+            <th>No.</th>
+            <th>Conduct</th>
+            <th>Attendance</th>
+        </tr>
+        <tr>
+            <td>1</td>
+            <td>Present</td>
+            <td>{{ data.attendanceByStatus['Present'] }} / {{ data.attendanceByStatus['total']  }}</td>
+        </tr>
+        <tr>
+            <td>2</td>
+            <td>Absent with VR</td>
+            <td>{{ data.attendanceByStatus['Absent with VR'] }} / {{ data.attendanceByStatus['total']  }}</td>
+        </tr>
+        <tr>
+            <td>3</td>
+            <td>Attended Late</td>
+            <td>{{ data.attendanceByStatus['Late'] }} / {{ data.attendanceByStatus['total']  }}</td>
+        </tr>
+        <tr>
+            <td>4</td>
+            <td>Attendance Rate</td>
+            <td>{{ ((data.attendanceByStatus['Present'] + data.attendanceByStatus['Absent with VR']) / data.attendanceByStatus['total'] * 100) | round(2) }} %</td>
+        </tr>
+        
+        <!--
+        unsure if this still required as this is an overall report which term test would they be referring to
+        <tr>
+            <td>5</td>
+            <td>Term Test 2</td>
+            <td>{{ data.TermTest2 }}</td>
+        </tr> -->
+    </table>
+    <p>* Attendance rate will be counted with consideration of VR (valid reason) i.e. MC shown, or other reasons supported with documentation</p>
+
+    <h3>3. REMARKS</h3>
+        <textarea id="remarks-input" placeholder="Enter remarks here..."></textarea>
+
+        <p>We look forward to supporting you in your academic journey as you approach the N-levels.</p>
+
+        <p>Yours sincerely,</p>
+        <img style="width: 120px;" src="{{ url_for('static', filename='siti.png') }}" alt="Siti Sig" />
+        <p>Siti Yariyati<br>
+        Course Manager<br>
+        Project Starfish c/o Foundation of Rotary Clubs (Singapore)</p>
+
+        <!-- Sticky Button -->
+        <p id="prompt">Enter Remarks first before able to generate</p>
+        <input type="submit" id="generate-report-btn" value="Generate Report">   
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+
+            // const date = document.getElementById('date');
+            // now = new Date()
+            // const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+            // const formattedDate = now.toLocaleString('en-SG', options).replace(/ GMT.*$/, '');
+            // date.textContent = formattedDate
+            
+            const button = document.getElementById('generate-report-btn');
+            const prompt = document.getElementById('prompt');
+            const textarea = document.getElementById('remarks-input');
+
+            // Initially hide the button
+            button.style.display = 'none';
+
+            // Show the button when the textarea is filled
+            textarea.addEventListener('input', function() {
+                if (this.value.trim() !== '') {
+                    button.style.display = 'block'; // Show the button
+                    prompt.style.display = 'none';
+                } else {
+                    button.style.display = 'none'; // Hide the button
+                    prompt.style.display = 'block';
+                }
+            });
+
+            // Function to generate PDF
+            button.addEventListener('click', function() {
+                // const element = document.body; // Change this to the specific element you want to convert
+                button.style.display = 'none';
+                window.print()
+                // html2pdf()
+                //     .from(element)
+                //     .set({
+                //         margin: 1,
+                //         filename: 'progress_report.pdf',
+                //         image: { type: 'jpeg', quality: 0.98 },
+                //         html2canvas: { scale: 2 },
+                //         jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } // Adjust format and orientation
+                //     })
+                //     .save();
+            });
+        });
+    </script>
+</body>
+</html>

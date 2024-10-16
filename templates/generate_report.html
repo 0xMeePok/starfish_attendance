@@ -96,6 +96,13 @@
                 <form method="POST">
                     <!-- Student selection dropdown -->
                     <div class="form-group">
+                        <label for="selected_type">Choose Report Type</label>:</label>
+                        <select class="form-control" id="selected_report" name="selected_report" required>
+                            <option value="">-- Select Report Type --</option>
+                                <option value=0>Overall</option>
+                                <option value=1>Progress</option>
+                        </select>
+
                         <label for="selected_year">Choose Intake</label>:</label>
                         <select class="form-control" id="selected_year" name="selected_year" required onchange="toggleStudentDropdown()">
                             <option value="">-- Select a Intake Year --</option>

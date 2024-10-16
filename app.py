@@ -920,22 +920,40 @@ def generate_report():
 
     if request.method == 'POST':
         # run pdf generating report function
+        selected_report = request.form.get('selected_report')
+        print("report", selected_report)
         selected_year = request.form.get('selected_year')
         selected_student_id = request.form.get('selected_student')
 
         # querying all the data to popualate the fields
-        retrieveDetails(selected_student_id, selected_year)
+        name, marks_data, attendanceByStatus, year = retrieveDetails(selected_student_id, selected_year, selected_report)
+        
+        data = {"name": name, "marks": marks_data, "attendanceByStatus" : attendanceByStatus, "year": year}
 
-        data = {"Name": selected_student_id, "Ref_No": selected_year, }
-
-        return render_template('report_template.html', data = data)
+        if selected_report == "0":
+            return render_template('report_overall_template.html', data = data)
+        else:
+            return render_template('report_progress_template.html', data = data)
 
     else:
         return render_template('generate_report.html', students = students, years = years)
-    
-def retrieveDetails(student_id, year):
+
+def retrieveDetails(student_id, year, selected_report):
     conn = get_db_connection()
     cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            SELECT StudentName
+            FROM student
+            WHERE StudentID = %s;
+        """, (student_id,))
+
+        name = cursor.fetchall()
+        
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
     # Execute the SQL query
     try:
         cursor.execute("""
@@ -950,7 +968,6 @@ def retrieveDetails(student_id, year):
             WHERE StudentID = %s
             AND YEAR(classDate) = %s;
         """, (student_id, year))
-        
         # Fetch all results
         results = cursor.fetchall()
 
@@ -959,7 +976,6 @@ def retrieveDetails(student_id, year):
     
     # Initialize variables to calculate overall marks
     marks_data = {}
-    avg = {}
 
     for row in results:
         student_id, subject, marks_obtained, total_marks, weightage = row
@@ -975,33 +991,52 @@ def retrieveDetails(student_id, year):
             else:
                 marks_data[subject] += marks_obtained / total_marks * weightage
 
+
     for n in marks_data:
-        if marks_data[n] != 0:
-            if avg == {}: 
-                avg['avg'] = marks_data[n]/len(marks_data)
-            else:
-                avg['avg'] += marks_data[n]/len(marks_data)
-    marks_data['avg'] = round(avg['avg'],2)
+            marks_data[n] = [marks_data[n] , get_grade(marks_data[n])]
 
+    cursor.execute("""
+        SELECT a.AttendanceStatus, COUNT(*) AS numOfAttendance 
+        FROM ATTENDANCE a
+        JOIN CLASSES c ON a.ClassID = c.ClassID 
+        WHERE a.StudentID = %s AND YEAR(c.ClassDate) = %s 
+        GROUP BY a.AttendanceStatus
+    """, (student_id, year))
 
-    # cursor.execute("""
+    attendanceByStatus = cursor.fetchall()
+    attendanceByStatus = dict(attendanceByStatus)
 
-    # """, (student_id, year))
-    
+    totalSum = sum(attendanceByStatus.values())
 
+    if 'Absent with VR' not in attendanceByStatus:
+        attendanceByStatus['Absent with VR'] = 0
 
-    final_data = [marks_data]
+    if 'Late' not in attendanceByStatus:
+        attendanceByStatus['Late'] = 0    
+
+    if 'Present' not in attendanceByStatus:
+        attendanceByStatus['Present'] = 0       
+
+    attendanceByStatus['total'] = totalSum
+
     cursor.close()
     conn.close()
+    print(name, marks_data, attendanceByStatus, year)
 
-    print(marks_data) # Return overall marks and the raw results if needed
+    return name, marks_data, attendanceByStatus, year
 
-
-
-
-
-
-
+def get_grade(score):
+    if 75 <= score <= 100:
+        return 'A'
+    elif 70 <= score <= 74:
+        return 'B'
+    elif 60 <= score <= 73:
+        return 'C'
+    elif 50 <= score <= 59:
+        return 'D'
+    elif 0 <= score <= 49:
+        return 'E'
+    
 @app.route('/get_students_by_year', methods=['GET'])
 def get_students_by_year():
     selected_year = request.args.get('year')
