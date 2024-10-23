@@ -76,12 +76,12 @@ def create_subject_class():
         try:
             # If a new subject is provided, insert it
             if new_subject:
-                cursor.execute("INSERT INTO Subject (SubjectName) VALUES (%s)", (new_subject,))
+                cursor.execute("INSERT INTO subject (SubjectName) VALUES (%s)", (new_subject,))
                 conn.commit()
                 subject_id = cursor.lastrowid
 
             # Insert the new class
-            cursor.execute("INSERT INTO Classes (ClassDate, SubjectID) VALUES (%s, %s)", (class_date, subject_id))
+            cursor.execute("INSERT INTO classes (ClassDate, SubjectID) VALUES (%s, %s)", (class_date, subject_id))
             conn.commit()
             new_class_id = cursor.lastrowid
 
@@ -95,7 +95,7 @@ def create_subject_class():
         return redirect(url_for('create_subject_class'))
 
     # Fetch existing subjects for the dropdown
-    cursor.execute("SELECT SubjectID, SubjectName FROM Subject ORDER BY SubjectName")
+    cursor.execute("SELECT SubjectID, SubjectName FROM subject ORDER BY SubjectName")
     subjects = cursor.fetchall()
 
     cursor.close()
@@ -125,14 +125,14 @@ def enroll_student():
             # Generate a unique channel_id
             channel_id = generate_channel_id()
             while True:
-                cursor.execute("SELECT COUNT(*) FROM Student WHERE ChannelID = %s", (channel_id,))
+                cursor.execute("SELECT COUNT(*) FROM student WHERE ChannelID = %s", (channel_id,))
                 if cursor.fetchone()[0] == 0:
                     break
                 channel_id = generate_channel_id()
 
             # Insert the new student into the database
             insert_query = """
-            INSERT INTO Student (StudentName, Email, PhoneNumber, SocialWorkerEmail, SocialWorkerPhone, ParentEmail, ParentPhone, TelegramUsername, ChannelID)
+            INSERT INTO student (StudentName, Email, PhoneNumber, SocialWorkerEmail, SocialWorkerPhone, ParentEmail, ParentPhone, TelegramUsername, ChannelID)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             cursor.execute(insert_query, (student_name, email, phone_number, social_worker_email, social_worker_phone, parent_email, parent_phone, telegram_username, channel_id))
@@ -181,14 +181,14 @@ def upload_student_enrollment():
                 # Generate a unique channel_id
                 channel_id = generate_channel_id()
                 while True:
-                    cursor.execute("SELECT COUNT(*) FROM Student WHERE ChannelID = %s", (channel_id,))
+                    cursor.execute("SELECT COUNT(*) FROM student WHERE ChannelID = %s", (channel_id,))
                     if cursor.fetchone()[0] == 0:
                         break
                     channel_id = generate_channel_id()
 
                 # Insert the new student into the database
                 insert_query = """
-                INSERT INTO Student (StudentName, Email, PhoneNumber, SocialWorkerEmail, SocialWorkerPhone, ParentEmail, ParentPhone, TelegramUsername, ChannelID)
+                INSERT INTO student (StudentName, Email, PhoneNumber, SocialWorkerEmail, SocialWorkerPhone, ParentEmail, ParentPhone, TelegramUsername, ChannelID)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 cursor.execute(insert_query, (student_name, email, phone_number, social_worker_email, social_worker_phone, parent_email, parent_phone, telegram_username, channel_id))
@@ -212,11 +212,11 @@ def enroll_classes():
     cursor = conn.cursor(dictionary=True)
 
     # Fetch all students for the dropdown
-    cursor.execute("SELECT StudentID, StudentName FROM Student")
+    cursor.execute("SELECT StudentID, StudentName FROM student")
     students = cursor.fetchall()
 
     # Fetch all subjects for the dropdown
-    cursor.execute("SELECT SubjectID, SubjectName FROM Subject")
+    cursor.execute("SELECT SubjectID, SubjectName FROM subject")
     subjects = cursor.fetchall()
 
     if request.method == 'POST':
@@ -225,20 +225,20 @@ def enroll_classes():
 
         # Enroll the student in the subject (Insert into StudentSubjects)
         cursor.execute("""
-            INSERT INTO StudentSubjects (StudentID, SubjectID)
+            INSERT INTO studentsubjects (StudentID, SubjectID)
             VALUES (%s, %s)
         """, (student_id, subject_id))
         
         # Get all classes for the given SubjectID
         cursor.execute("""
-            SELECT ClassID FROM Classes WHERE SubjectID = %s
+            SELECT ClassID FROM classes WHERE SubjectID = %s
         """, (subject_id,))
         classes = cursor.fetchall()
 
         # Create attendance records for the student for each class
         for class_record in classes:
             cursor.execute("""
-                INSERT INTO Attendance (StudentID, ClassID, AttendanceStatus)
+                INSERT INTO attendance (StudentID, ClassID, AttendanceStatus)
                 VALUES (%s, %s, 'Absent')
             """, (student_id, class_record['ClassID']))
 
@@ -273,11 +273,11 @@ def overall_attendance():
         cursor = conn.cursor(dictionary=True)
 
         # Fetch all student names
-        cursor.execute("SELECT DISTINCT StudentName FROM Student ORDER BY StudentName")
+        cursor.execute("SELECT DISTINCT StudentName FROM student ORDER BY StudentName")
         all_students = [row['StudentName'] for row in cursor.fetchall()]
 
         # Fetch all subject names
-        cursor.execute("SELECT DISTINCT SubjectName FROM Subject ORDER BY SubjectName")
+        cursor.execute("SELECT DISTINCT SubjectName FROM subject ORDER BY SubjectName")
         all_subjects = [row['SubjectName'] for row in cursor.fetchall()]
 
         query = """
@@ -292,13 +292,13 @@ def overall_attendance():
             a.TimeAttended,
             a.Reason
         FROM 
-            Student s
+            student s
         JOIN 
-            Attendance a ON s.StudentID = a.StudentID
+            attendance a ON s.StudentID = a.StudentID
         JOIN 
-            Classes c ON a.ClassID = c.ClassID
+            classes c ON a.ClassID = c.ClassID
         JOIN
-            Subject sub ON c.SubjectID = sub.SubjectID
+            subject sub ON c.SubjectID = sub.SubjectID
         ORDER BY 
             c.ClassDate DESC, s.StudentName, sub.SubjectName
         """
@@ -349,7 +349,7 @@ def update_attendance():
 
             # Fetch the current status of the student for the specific class
             cursor.execute("""
-                SELECT AttendanceStatus, TimeAttended FROM Attendance
+                SELECT AttendanceStatus, TimeAttended FROM attendance
                 WHERE StudentID = %s AND ClassID = %s
             """, (student_id, class_id))
             current_record = cursor.fetchone()
@@ -375,7 +375,7 @@ def update_attendance():
 
             # Update the attendance record
             update_query = """
-            UPDATE Attendance
+            UPDATE attendance
             SET AttendanceStatus = %s, TimeAttended = %s, Reason = %s
             WHERE StudentID = %s AND ClassID = %s
             """
@@ -491,7 +491,7 @@ def class_attendance():
         end_date = request.args.get('end_date')
 
         # Get the oldest and latest class records
-        date_range_query = "SELECT MIN(ClassDate), MAX(ClassDate) FROM Classes"
+        date_range_query = "SELECT MIN(ClassDate), MAX(ClassDate) FROM classes"
         cursor.execute(date_range_query)
         oldest_class_date, latest_class_date = cursor.fetchone()
 
@@ -505,9 +505,9 @@ def class_attendance():
             SUM(CASE WHEN a.AttendanceStatus = 'Absent' THEN 1 ELSE 0 END) AS AbsentCount,
             SUM(CASE WHEN a.AttendanceStatus = 'Absent with VR' THEN 1 ELSE 0 END) AS AbsentVRCount
         FROM 
-            Classes c 
+            classes c 
         LEFT JOIN 
-            Attendance a 
+            attendance a 
         ON 
             c.ClassID = a.ClassID 
         """
@@ -567,11 +567,11 @@ def create_marks():
     cursor = conn.cursor(dictionary=True)
 
     # Fetch all students for the dropdown
-    cursor.execute("SELECT StudentID, StudentName FROM Student")
+    cursor.execute("SELECT StudentID, StudentName FROM student")
     students = cursor.fetchall()
 
     # Fetch all subjects for the dropdown
-    cursor.execute("SELECT SubjectID, SubjectName FROM Subject")
+    cursor.execute("SELECT SubjectID, SubjectName FROM subject")
     subjects = cursor.fetchall()
 
     if request.method == 'POST':
@@ -584,7 +584,7 @@ def create_marks():
 
         # Insert the marks into the database
         insert_query = """
-        INSERT INTO Marks (StudentID, Subject, TestType, MarksObtained, TotalMarks, Weightage)
+        INSERT INTO marks (StudentID, Subject, TestType, MarksObtained, TotalMarks, Weightage)
         VALUES (%s, %s, %s, %s, %s, %s)
         """
         cursor.execute(insert_query, (student_id, subject, test_type, marks_obtained, total_marks, weightage))
@@ -609,7 +609,7 @@ def export_class_attendance():
     cursor = conn.cursor()
 
     # Fetch all subjects for the dropdown
-    cursor.execute("SELECT SubjectID, SubjectName FROM Subject")
+    cursor.execute("SELECT SubjectID, SubjectName FROM subject")
     subjects = cursor.fetchall()
 
     if request.method == "POST":
@@ -618,15 +618,15 @@ def export_class_attendance():
 
         # Fetch attendance data for the selected subject and class date
         cursor.execute("""
-            SELECT Student.StudentName, Attendance.AttendanceStatus
-            FROM Attendance
-            JOIN Student ON Attendance.StudentID = Student.StudentID
-            JOIN Classes ON Attendance.ClassID = Classes.ClassID
-            WHERE Classes.SubjectID = %s AND Classes.ClassDate = %s
+            SELECT student.StudentName, attendance.AttendanceStatus
+            FROM attendance
+            JOIN student ON attendance.StudentID = student.StudentID
+            JOIN classes ON attendance.ClassID = classes.ClassID
+            WHERE classes.SubjectID = %s AND classes.ClassDate = %s
         """, (selected_subject_id, selected_class_date))
         attendance_data = cursor.fetchall()
         # Fetch the subject name to include in the filename
-        cursor.execute("SELECT SubjectName FROM Subject WHERE SubjectID = %s", (selected_subject_id,))
+        cursor.execute("SELECT SubjectName FROM subject WHERE SubjectID = %s", (selected_subject_id,))
         subject_name = cursor.fetchone()[0]
 
         # Initialize categorized attendance dictionary for all statuses
@@ -684,7 +684,7 @@ def get_classes():
 
     try:
         # Fetch class dates for the selected subject
-        cursor.execute("SELECT ClassDate FROM Classes WHERE SubjectID = %s", (subject_id,))
+        cursor.execute("SELECT ClassDate FROM classes WHERE SubjectID = %s", (subject_id,))
         class_dates = cursor.fetchall()
 
         # Create a list of class dates to return as JSON
@@ -705,7 +705,7 @@ def export_marks():
     cursor = conn.cursor()
 
     # Fetch all students for the dropdown
-    cursor.execute("SELECT StudentID, StudentName FROM Student")
+    cursor.execute("SELECT StudentID, StudentName FROM student")
     students = cursor.fetchall()
 
     if request.method == "POST":
@@ -714,7 +714,7 @@ def export_marks():
         # Fetch marks data for the selected student
         cursor.execute("""
             SELECT SubjectID, TestType, MarksObtained, TotalMarks, Weightage
-            FROM Marks
+            FROM marks
             WHERE StudentID = %s
         """, (selected_student_id,))
         marks_data = cursor.fetchall()
@@ -733,7 +733,7 @@ def export_marks():
         output.seek(0)
 
         # Fetch student name for filename
-        cursor.execute("SELECT StudentName FROM Student WHERE StudentID = %s", (selected_student_id,))
+        cursor.execute("SELECT StudentName FROM student WHERE StudentID = %s", (selected_student_id,))
         student_name = cursor.fetchone()[0]
 
         # Create a filename using the student name
@@ -775,14 +775,14 @@ def login():
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute("select password from USERS where username = %s", (request.form['username'],))
+            cursor.execute("select password from users where username = %s", (request.form['username'],))
             hashed_pwd = cursor.fetchall()
             
             if hashed_pwd != []:
                 authoriseBool = check_password_hash(hashed_pwd[0][0], request.form['password'])
 
                 if authoriseBool:
-                    cursor.execute("select user_id, role from USERS where username = %s", (request.form['username'],))
+                    cursor.execute("select user_id, role from users where username = %s", (request.form['username'],))
                     result = cursor.fetchone()
                     session['user_id'] = result[0]
                     session['role'] = result[1] 
@@ -811,7 +811,7 @@ def login():
         # check if already logged in, if yes redirect back to homepage
         if 'user_id' in session and 'role' in session:
             try:
-                cursor.execute("select role from USERS where user_id = %s", (session['user_id'],))
+                cursor.execute("select role from users where user_id = %s", (session['user_id'],))
                 actual_role = cursor.fetchall()[0][0]
 
                 if actual_role == session['role']:
@@ -850,13 +850,13 @@ def register():
         cursor = conn.cursor()
         try:
             hashed_password = generate_password_hash(request.form['password'])
-            cursor.execute("INSERT INTO USERS (username, password, role) VALUES (%s, %s, 0)", (request.form['username'], hashed_password))
+            cursor.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, 0)", (request.form['username'], hashed_password))
             if cursor.rowcount == 0:
                 flash("Username already exists, try another name")
                 return redirect(url_for('register.html'))
             conn.commit()
 
-            cursor.execute("select user_id, role from USERS where username = %s", (request.form['username'],))
+            cursor.execute("select user_id, role from users where username = %s", (request.form['username'],))
             result = cursor.fetchone()
             session['user_id'] = result[0]
             session['role'] = result[1]  # Store the role
@@ -878,7 +878,7 @@ def register():
         # check if already logged in, if yes redirect back to homepage
         if 'user_id' in session and 'role' in session:
             try:
-                cursor.execute("select role from USERS where user_id = %s", (session['user_id'],))
+                cursor.execute("select role from users where user_id = %s", (session['user_id'],))
                 actual_role = cursor.fetchall()[0][0]
 
                 if actual_role == session['role']:
@@ -915,7 +915,7 @@ def generate_report():
         years.append(n)
 
      # Fetch all students for the dropdown
-    cursor.execute("SELECT StudentID, StudentName FROM Student")
+    cursor.execute("SELECT StudentID, StudentName FROM student")
     students = cursor.fetchall()
 
     if request.method == 'POST':
@@ -996,8 +996,8 @@ def retrieveDetails(student_id, year, selected_report):
 
     cursor.execute("""
         SELECT a.AttendanceStatus, COUNT(*) AS numOfAttendance 
-        FROM ATTENDANCE a
-        JOIN CLASSES c ON a.ClassID = c.ClassID 
+        FROM attendance a
+        JOIN classes c ON a.ClassID = c.ClassID 
         WHERE a.StudentID = %s AND YEAR(c.ClassDate) = %s 
         GROUP BY a.AttendanceStatus
     """, (student_id, year))
@@ -1086,7 +1086,7 @@ def check_user_logged_in():
         cursor = conn.cursor()
 
         try:
-            cursor.execute("select role from USERS where user_id = %s", (session['user_id'],))
+            cursor.execute("select role from users where user_id = %s", (session['user_id'],))
             actual_role = cursor.fetchall()[0][0]
 
             if actual_role != session['role']:
