@@ -3,10 +3,9 @@ import mysql.connector
 import random
 import string
 from dotenv import load_dotenv
-from datetime import datetime, timedelta,time
+from datetime import datetime, timedelta
 import pandas as pd
 import os
-from dateutil import parser
 import csv
 import io
 import logging
@@ -15,6 +14,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import sys
 import atexit
 from pathlib import Path
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+import logging
 
 TELEGRAM_DIR = Path(__file__).parent / 'telegram'
 sys.path.append(str(TELEGRAM_DIR))
@@ -23,23 +25,86 @@ from telegram.bot_manager import BotManager
 
 # Load environment variables from the .env file
 load_dotenv()
+
 logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", "fallback_secret_key")
 
-# Initialize bot manager
-bot_manager = BotManager()
-
-# Register shutdown function
-atexit.register(bot_manager.shutdown)
-
-# Start the bot scheduler
-@app.before_first_request
-def init_bot():
-    bot_manager.schedule_bot()
 # Directory to save uploaded files
 UPLOAD_FOLDER = "uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+
+
+# Initialize scheduler
+scheduler = BackgroundScheduler()
+scheduler.start()
+
+# Initialize bot manager
+bot_manager = None
+first_request = True
+
+def init_bot():
+    global bot_manager
+    try:
+        if bot_manager is None:
+            logger.info("Initializing bot manager...")
+            bot_manager = BotManager()
+            
+            # Schedule bot to start at 10:15 AM every Monday
+            scheduler.add_job(
+                bot_manager.start_bot,
+                trigger=CronTrigger(
+                    day_of_week='mon',
+                    hour=10,
+                    minute=15
+                ),
+                id='start_bot'
+            )
+
+            # Schedule bot to stop at 11:59 PM every Monday
+            scheduler.add_job(
+                bot_manager.stop_bot,
+                trigger=CronTrigger(
+                    day_of_week='mon',
+                    hour=23,
+                    minute=59
+                ),
+                id='stop_bot'
+            )
+            
+            logger.info("Bot manager initialized and scheduled")
+    except Exception as e:
+        logger.error(f"Error initializing bot manager: {e}")
+
+# Initialize bot after first request
+@app.before_request
+def before_request():
+    global first_request
+    if first_request:
+        init_bot()
+        first_request = False
+
+# Clean up function
+def cleanup():
+    logger.info("Cleaning up...")
+    if bot_manager:
+        bot_manager.shutdown()
+    if scheduler.running:
+        scheduler.shutdown()
+
+# Register cleanup function
+atexit.register(cleanup)
+
+# Add a route to check scheduler and bot status
+@app.route('/status')
+def check_status():
+    return jsonify({
+        'scheduler_running': scheduler.running,
+        'bot_manager_initialized': bot_manager is not None,
+        'bot_running': bot_manager.is_running if bot_manager else False
+    })
 
 # Database connection details using environment variables
 db_config = {

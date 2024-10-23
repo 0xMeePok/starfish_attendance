@@ -2,3 +2,4 @@
 /.venv
 *.pyc
 .env
+telegram/bot_test.log
