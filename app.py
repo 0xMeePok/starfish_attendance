@@ -921,7 +921,6 @@ def generate_report():
     if request.method == 'POST':
         # run pdf generating report function
         selected_report = request.form.get('selected_report')
-        print("report", selected_report)
         selected_year = request.form.get('selected_year')
         selected_student_id = request.form.get('selected_student')
 
