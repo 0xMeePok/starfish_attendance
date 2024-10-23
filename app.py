@@ -12,12 +12,31 @@ import io
 import logging
 from io import StringIO
 from werkzeug.security import generate_password_hash, check_password_hash
+import sys
+import atexit
+from pathlib import Path
+
+TELEGRAM_DIR = Path(__file__).parent / 'telegram'
+sys.path.append(str(TELEGRAM_DIR))
+
+from telegram.bot_manager import BotManager
 
 # Load environment variables from the .env file
 load_dotenv()
 logging.basicConfig(level=logging.DEBUG)
+
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "fallback_secret_key")
+
+# Initialize bot manager
+bot_manager = BotManager()
+
+# Register shutdown function
+atexit.register(bot_manager.shutdown)
+
+# Start the bot scheduler
+@app.before_first_request
+def init_bot():
+    bot_manager.schedule_bot()
 # Directory to save uploaded files
 UPLOAD_FOLDER = "uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
