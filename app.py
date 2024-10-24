@@ -56,12 +56,12 @@ def init_bot():
             logger.info("Bot started successfully")
             bot_instance.check_attendance()
             # Schedule attendance checks
-            # scheduler.add_job(
-            #     bot_instance.check_attendance,
-            #     trigger=CronTrigger(day_of_week='mon', hour=10, minute=15),
-            #     id='attendance_check',
-            #     replace_existing=True
-            # )
+            scheduler.add_job(
+                bot_instance.check_attendance(),
+                trigger=CronTrigger(day_of_week='mon', hour=10, minute=15),
+                id='attendance_check',
+                replace_existing=True
+            )
             
         except Exception as e:
             logger.error(f"Failed to initialize bot: {e}")
