@@ -2,6 +2,7 @@ import mysql.connector
 from functools import wraps
 from config import DB_CONFIG, BOT_TOKEN
 import logging
+from datetime import datetime, date
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -10,7 +11,7 @@ def with_db_connection(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         self.conn = mysql.connector.connect(**DB_CONFIG)
-        self.cursor = self.conn.cursor()
+        self.cursor = self.conn.cursor(dictionary=True)
         try:
             result = func(self, *args, **kwargs)
             return result
@@ -24,165 +25,104 @@ def with_db_connection(func):
 
 class StarfishDB:
     def __init__(self):
-        """Initializes the StarfishDB class."""
         self.token = BOT_TOKEN
         self.conn = None
         self.cursor = None
 
     @with_db_connection
-    def user_exists(self, username):
-        """Check if a user exists in Student table."""
-        query = "SELECT EXISTS(SELECT 1 FROM Student WHERE TelegramUsername = %s)"
-        self.cursor.execute(query, (username,))
-        return self.cursor.fetchone()[0]
-
-    @with_db_connection
-    def update_channel_id(self, username, chat_id):
-        """Updates the chat_id for a user in the user_channels table."""
-        # First, get the ChannelID from Student table
-        query = "SELECT ChannelID FROM Student WHERE TelegramUsername = %s"
-        self.cursor.execute(query, (username,))
-        result = self.cursor.fetchone()
-        
-        if not result:
-            raise Exception("Student not found")
-            
-        channel_id = result[0]
-        
-        # Check if entry exists in user_channels
-        query = "SELECT 1 FROM user_channels WHERE username = %s"
-        self.cursor.execute(query, (username,))
-        exists = self.cursor.fetchone()
-        
-        if exists:
-            # Update existing record
-            query = """
-            UPDATE user_channels 
-            SET chat_id = %s,
-                last_updated = CURRENT_TIMESTAMP
-            WHERE username = %s AND channel_id = %s
-            """
-            self.cursor.execute(query, (chat_id, username, channel_id))
-        else:
-            # Insert new record
-            query = """
-            INSERT INTO user_channels (username, channel_id, chat_id, last_updated) 
-            VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
-            """
-            self.cursor.execute(query, (username, channel_id, chat_id))
-        
-        self.conn.commit()
-
-    @with_db_connection
     def get_channel_id(self, username):
-        """Gets the chat_id for a user."""
+        """Get the chat_id for a user."""
         query = "SELECT chat_id FROM user_channels WHERE username = %s"
         self.cursor.execute(query, (username,))
         result = self.cursor.fetchone()
-        return result[0] if result else None
+        print(result)
+        return result['chat_id'] if result else None
 
     @with_db_connection
-    def get_student_details(self, username):
-        """Get student details including attendance status."""
+    def is_awaiting_response(self, username):
+        """Check if we're waiting for a response from this student."""
+        query = "SELECT awaiting_response FROM user_channels WHERE username = %s"
+        self.cursor.execute(query, (username,))
+        result = self.cursor.fetchone()
+        return result['awaiting_response'] if result else False
+
+    @with_db_connection
+    def set_awaiting_response(self, username):
+        """Mark a student as awaiting response."""
         query = """
-        SELECT s.StudentName, s.StudentID, s.ChannelID,
-               a.AttendanceStatus, a.TimeAttended, a.Reason,
-               c.ClassDate
-        FROM Student s
-        JOIN user_channels uc ON s.ChannelID = uc.channel_id
-        LEFT JOIN Attendance a ON s.StudentID = a.StudentID
-        LEFT JOIN Classes c ON a.ClassID = c.ClassID
-        WHERE uc.username = %s
-        ORDER BY c.ClassDate DESC
-        LIMIT 1
+        UPDATE user_channels 
+        SET awaiting_response = 1,
+            last_updated = CURRENT_TIMESTAMP
+        WHERE username = %s
         """
         self.cursor.execute(query, (username,))
-        return self.cursor.fetchone()
+        self.conn.commit()
+
+    @with_db_connection
+    def clear_awaiting_response(self, username):
+        """Clear the awaiting response flag."""
+        query = """
+        UPDATE user_channels 
+        SET awaiting_response = 0,
+            last_updated = CURRENT_TIMESTAMP
+        WHERE username = %s
+        """
+        self.cursor.execute(query, (username,))
+        self.conn.commit()
+
+    @with_db_connection
+    def update_attendance_with_reason(self, username, reason, status):
+        """Update attendance status and reason."""
+        today = date.today()
+        query = """
+        UPDATE Attendance a
+        JOIN Student s ON a.StudentID = s.StudentID
+        JOIN Classes c ON a.ClassID = c.ClassID
+        SET a.AttendanceStatus = %s,
+            a.Reason = %s,
+            a.TimeAttended = CURRENT_TIME
+        WHERE s.TelegramUsername = %s
+        AND DATE(c.ClassDate) = %s
+        """
+        self.cursor.execute(query, (status, reason, username, today))
+        self.conn.commit()
+        self.clear_awaiting_response(username)
 
     @with_db_connection
     def get_absent_students(self, check_date):
-        """Get all students who are absent/not marked present for today"""
+        """Get all students who haven't been marked present for today."""
         query = """
-        SELECT s.StudentID, s.StudentName, s.TelegramUsername as username
+        SELECT DISTINCT
+            s.StudentID,
+            s.StudentName,
+            s.TelegramUsername as username
         FROM Student s
         LEFT JOIN Attendance a ON s.StudentID = a.StudentID
         LEFT JOIN Classes c ON a.ClassID = c.ClassID
-        WHERE DATE(c.ClassDate) = %s 
-        AND (a.AttendanceStatus IS NULL 
-             OR a.AttendanceStatus IN ('Absent', 'Late'))
+        WHERE DATE(c.ClassDate) = %s
+        AND (a.AttendanceStatus IS NULL OR a.AttendanceStatus = 'Absent')
         """
         self.cursor.execute(query, (check_date,))
         return self.cursor.fetchall()
 
     @with_db_connection
-    def set_awaiting_late_reason(self, username):
-        """Mark a student as awaiting a late reason"""
-        query = """
-        UPDATE user_channels 
-        SET awaiting_reason = 1,
-            last_updated = CURRENT_TIMESTAMP
-        WHERE username = %s
-        """
-        self.cursor.execute(query, (username,))
-        self.conn.commit()
-
-    @with_db_connection
-    def clear_awaiting_late_reason(self, username):
-        """Clear the awaiting reason flag for a student"""
-        query = """
-        UPDATE user_channels 
-        SET awaiting_reason = 0,
-            last_updated = CURRENT_TIMESTAMP
-        WHERE username = %s
-        """
-        self.cursor.execute(query, (username,))
-        self.conn.commit()
-
-    @with_db_connection
-    def is_awaiting_late_reason(self, username):
-        """Check if a student is awaiting a late reason"""
-        query = """
-        SELECT awaiting_reason 
-        FROM user_channels 
-        WHERE username = %s
-        """
+    def get_student_name(self, username):
+        """Get student's name from their username."""
+        query = "SELECT StudentName FROM Student WHERE TelegramUsername = %s"
         self.cursor.execute(query, (username,))
         result = self.cursor.fetchone()
-        return result[0] if result else False
-
+        return result['StudentName'] if result else None
+    
     @with_db_connection
-    def update_reason(self, username, reason):
-        """Update the late reason and clear the awaiting flag"""
-        query = """
-        UPDATE user_channels 
-        SET reason_for_late = %s,
-            awaiting_reason = 0,
-            last_updated = CURRENT_TIMESTAMP
-        WHERE username = %s
-        """
-        self.cursor.execute(query, (reason, username))
+    def update_channel_id(self, username, channel_id):
+        """Sets the channel ID for a user."""
+        username = '@'+username
+        print(username,channel_id)
+        query = "UPDATE user_channels SET chat_id = %s WHERE username = %s"
+        print("xd")
+        self.cursor.execute(query, (channel_id, username))
         self.conn.commit()
-
-        # Also update the Attendance table
-        query = """
-        UPDATE Attendance a
-        JOIN Student s ON a.StudentID = s.StudentID
-        JOIN Classes c ON a.ClassID = c.ClassID
-        SET a.Reason = %s
-        WHERE s.TelegramUsername = %s
-        AND DATE(c.ClassDate) = CURDATE()
-        """
-        self.cursor.execute(query, (reason, username))
-        self.conn.commit()
-
-    @with_db_connection
-    def get_today_class_id(self):
-        """Get the class ID for today's class"""
-        query = """
-        SELECT ClassID 
-        FROM Classes 
-        WHERE DATE(ClassDate) = CURDATE()
-        """
-        self.cursor.execute(query)
-        result = self.cursor.fetchone()
-        return result[0] if result else None
+        if self.cursor.rowcount > 0:
+            print(f"Success: {self.cursor.rowcount} row(s) affected.")
+        else:
+            print("No rows were updated.")
