@@ -1,3 +1,4 @@
+# from telegram.bot_manager import BotManager
 from flask import Flask, render_template, jsonify, request, redirect, url_for, flash, make_response, render_template, session
 import mysql.connector
 import random
@@ -21,7 +22,6 @@ import logging
 TELEGRAM_DIR = Path(__file__).parent / 'telegram'
 sys.path.append(str(TELEGRAM_DIR))
 
-from telegram.bot_manager import BotManager
 
 # Load environment variables from the .env file
 load_dotenv()
@@ -45,13 +45,14 @@ scheduler.start()
 bot_manager = None
 first_request = True
 
+"""
 def init_bot():
     global bot_manager
     try:
         if bot_manager is None:
             logger.info("Initializing bot manager...")
             bot_manager = BotManager()
-            
+
             # Schedule bot to start at 10:15 AM every Monday
             scheduler.add_job(
                 bot_manager.start_bot,
@@ -73,12 +74,14 @@ def init_bot():
                 ),
                 id='stop_bot'
             )
-            
+
             logger.info("Bot manager initialized and scheduled")
     except Exception as e:
         logger.error(f"Error initializing bot manager: {e}")
 
 # Initialize bot after first request
+
+
 @app.before_request
 def before_request():
     global first_request
@@ -87,6 +90,8 @@ def before_request():
         first_request = False
 
 # Clean up function
+
+
 def cleanup():
     logger.info("Cleaning up...")
     if bot_manager:
@@ -94,10 +99,13 @@ def cleanup():
     if scheduler.running:
         scheduler.shutdown()
 
+
 # Register cleanup function
 atexit.register(cleanup)
 
 # Add a route to check scheduler and bot status
+
+
 @app.route('/status')
 def check_status():
     return jsonify({
@@ -105,6 +113,7 @@ def check_status():
         'bot_manager_initialized': bot_manager is not None,
         'bot_running': bot_manager.is_running if bot_manager else False
     })
+"""
 
 # Database connection details using environment variables
 db_config = {
@@ -121,6 +130,8 @@ def page_not_found(e):
     return render_template('error.html', error="The page you are looking for does not exist."), 404
 
 # Custom handler for 500 Internal Server Error
+
+
 @app.errorhandler(500)
 def internal_server_error(e):
     return render_template('error.html', error="Internal Server Error."), 500
@@ -147,6 +158,8 @@ Creation of Classes to map:
 
 
 """
+
+
 @app.route('/create_subject_class', methods=['GET', 'POST'])
 def create_subject_class():
     conn = mysql.connector.connect(**db_config)
@@ -160,14 +173,30 @@ def create_subject_class():
         try:
             # If a new subject is provided, insert it
             if new_subject:
-                cursor.execute("INSERT INTO subject (SubjectName) VALUES (%s)", (new_subject,))
+                cursor.execute(
+                    "INSERT INTO subject (SubjectName) VALUES (%s)", (new_subject,))
                 conn.commit()
                 subject_id = cursor.lastrowid
 
             # Insert the new class
-            cursor.execute("INSERT INTO classes (ClassDate, SubjectID) VALUES (%s, %s)", (class_date, subject_id))
+            cursor.execute(
+                "INSERT INTO classes (ClassDate, SubjectID) VALUES (%s, %s)", (class_date, subject_id))
             conn.commit()
             new_class_id = cursor.lastrowid
+
+            # Check for students already enrolled in this subject
+            cursor.execute(
+                "SELECT StudentID FROM studentsubjects WHERE SubjectID = %s", (subject_id,))
+            enrolled_students = cursor.fetchall()
+
+            # If students are enrolled, insert their attendance records for the new class
+            if enrolled_students:
+                for student in enrolled_students:
+                    cursor.execute("""
+                        INSERT INTO attendance (StudentID, ClassID, AttendanceStatus)
+                        VALUES (%s, %s, 'Absent')
+                    """, (student[0], new_class_id))
+                conn.commit()
 
         except mysql.connector.Error as err:
             conn.rollback()
@@ -179,7 +208,8 @@ def create_subject_class():
         return redirect(url_for('create_subject_class'))
 
     # Fetch existing subjects for the dropdown
-    cursor.execute("SELECT SubjectID, SubjectName FROM subject ORDER BY SubjectName")
+    cursor.execute(
+        "SELECT SubjectID, SubjectName FROM subject ORDER BY SubjectName")
     subjects = cursor.fetchall()
 
     cursor.close()
@@ -187,8 +217,10 @@ def create_subject_class():
 
     return render_template('create_subject_class.html', subjects=subjects)
 
+
 def generate_channel_id():
     return 'channel_' + ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+
 
 @app.route('/enroll_student', methods=['GET', 'POST'])
 def enroll_student():
@@ -209,7 +241,8 @@ def enroll_student():
             # Generate a unique channel_id
             channel_id = generate_channel_id()
             while True:
-                cursor.execute("SELECT COUNT(*) FROM student WHERE ChannelID = %s", (channel_id,))
+                cursor.execute(
+                    "SELECT COUNT(*) FROM student WHERE ChannelID = %s", (channel_id,))
                 if cursor.fetchone()[0] == 0:
                     break
                 channel_id = generate_channel_id()
@@ -219,7 +252,8 @@ def enroll_student():
             INSERT INTO student (StudentName, Email, PhoneNumber, SocialWorkerEmail, SocialWorkerPhone, ParentEmail, ParentPhone, TelegramUsername, ChannelID)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
-            cursor.execute(insert_query, (student_name, email, phone_number, social_worker_email, social_worker_phone, parent_email, parent_phone, telegram_username, channel_id))
+            cursor.execute(insert_query, (student_name, email, phone_number, social_worker_email,
+                           social_worker_phone, parent_email, parent_phone, telegram_username, channel_id))
             conn.commit()
 
             flash('Student enrolled successfully!', 'success')
@@ -238,17 +272,18 @@ def upload_student_enrollment():
     if 'file' not in request.files:
         flash('No file part', 'error')
         return redirect(url_for('enroll_student'))
-    
+
     file = request.files['file']
-    
+
     if file.filename == '':
         flash('No selected file', 'error')
         return redirect(url_for('enroll_student'))
-    
+
     if file and file.filename.endswith('.csv'):
         try:
             # Read the CSV file
-            stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+            stream = io.StringIO(
+                file.stream.read().decode("UTF8"), newline=None)
             csv_reader = csv.reader(stream)
             next(csv_reader)  # Skip header row if present
 
@@ -257,7 +292,8 @@ def upload_student_enrollment():
 
             for row in csv_reader:
                 if len(row) != 8:
-                    flash(f'Invalid row in CSV: {row}. Expected 8 fields.', 'error')
+                    flash(
+                        f'Invalid row in CSV: {row}. Expected 8 fields.', 'error')
                     continue
 
                 student_name, email, phone_number, social_worker_email, social_worker_phone, parent_email, parent_phone, telegram_username = row
@@ -265,7 +301,8 @@ def upload_student_enrollment():
                 # Generate a unique channel_id
                 channel_id = generate_channel_id()
                 while True:
-                    cursor.execute("SELECT COUNT(*) FROM student WHERE ChannelID = %s", (channel_id,))
+                    cursor.execute(
+                        "SELECT COUNT(*) FROM student WHERE ChannelID = %s", (channel_id,))
                     if cursor.fetchone()[0] == 0:
                         break
                     channel_id = generate_channel_id()
@@ -275,7 +312,8 @@ def upload_student_enrollment():
                 INSERT INTO student (StudentName, Email, PhoneNumber, SocialWorkerEmail, SocialWorkerPhone, ParentEmail, ParentPhone, TelegramUsername, ChannelID)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
-                cursor.execute(insert_query, (student_name, email, phone_number, social_worker_email, social_worker_phone, parent_email, parent_phone, telegram_username, channel_id))
+                cursor.execute(insert_query, (student_name, email, phone_number, social_worker_email,
+                               social_worker_phone, parent_email, parent_phone, telegram_username, channel_id))
 
             conn.commit()
             cursor.close()
@@ -312,7 +350,7 @@ def enroll_classes():
             INSERT INTO studentsubjects (StudentID, SubjectID)
             VALUES (%s, %s)
         """, (student_id, subject_id))
-        
+
         # Get all classes for the given SubjectID
         cursor.execute("""
             SELECT ClassID FROM classes WHERE SubjectID = %s
@@ -334,9 +372,8 @@ def enroll_classes():
 
     cursor.close()
     conn.close()
-    
-    return render_template('enroll_classes.html', students=students, subjects=subjects)
 
+    return render_template('enroll_classes.html', students=students, subjects=subjects)
 
 
 # Attendance related functions
@@ -357,11 +394,13 @@ def overall_attendance():
         cursor = conn.cursor(dictionary=True)
 
         # Fetch all student names
-        cursor.execute("SELECT DISTINCT StudentName FROM student ORDER BY StudentName")
+        cursor.execute(
+            "SELECT DISTINCT StudentName FROM student ORDER BY StudentName")
         all_students = [row['StudentName'] for row in cursor.fetchall()]
 
         # Fetch all subject names
-        cursor.execute("SELECT DISTINCT SubjectName FROM subject ORDER BY SubjectName")
+        cursor.execute(
+            "SELECT DISTINCT SubjectName FROM subject ORDER BY SubjectName")
         all_subjects = [row['SubjectName'] for row in cursor.fetchall()]
 
         query = """
@@ -407,64 +446,75 @@ def overall_attendance():
         conn.close()
 
         logging.debug("Rendering attendance.html template")
-        return render_template('attendance.html', 
-                               attendance_data=attendance_data, 
+        return render_template('attendance.html',
+                               attendance_data=attendance_data,
                                all_students=all_students,
                                all_subjects=all_subjects)
     except Exception as e:
         logging.error(f"Error in overall_attendance route: {str(e)}")
         return f"An error occurred: {str(e)}", 500
-    
+
+
 @app.route('/update_attendance', methods=['POST'])
 def update_attendance():
     data = request.json
     logging.info(f"Received data: {data}")
-    
+
+    # Ensure the received data is a dictionary
+    if not isinstance(data, dict):
+        logging.error("Invalid data format: Expected a dictionary")
+        return jsonify({"status": "error", "message": "Invalid data format"}), 400
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
     try:
-        for record in data:
-            student_id = record['StudentID']
-            class_id = record['ClassID']
-            new_status = record['AttendanceStatus']
-            time_attended = record.get('TimeAttended', '')  # Get the time from the request
-            reason = record.get('Reason', '')
+        # Accessing data as a dictionary
+        student_id = data['StudentID']
+        class_id = data['ClassID']
+        new_status = data['AttendanceStatus']
+        # Get the time from the request
+        time_attended = data.get('TimeAttended', '')
+        reason = data.get('Reason', '')
 
-            # Fetch the current status of the student for the specific class
-            cursor.execute("""
-                SELECT AttendanceStatus, TimeAttended FROM attendance
-                WHERE StudentID = %s AND ClassID = %s
-            """, (student_id, class_id))
-            current_record = cursor.fetchone()
-
-            if not current_record:
-                logging.error(f"No existing attendance record found for StudentID={student_id}, ClassID={class_id}")
-                continue
-
-            current_status, current_time_attended = current_record
-
-            # Check if time_attended was provided in the request
-            if not time_attended:
-                # Only update TimeAttended if the status changes to 'Present' and was not 'Present' before
-                if current_status != 'Present' and new_status == 'Present':
-                    time_attended = datetime.now().strftime('%H:%M:%S')  # Set to current time
-                    logging.info(f"TimeAttended updated to current time: {time_attended}")
-                else:
-                    time_attended = current_time_attended  # Retain the current time
-            else:
-                logging.info(f"TimeAttended manually updated to: {time_attended}")
-
-            logging.info(f"Updating record: StudentID={student_id}, ClassID={class_id}, Status={new_status}, Time={time_attended}, Reason={reason}")
-
-            # Update the attendance record
-            update_query = """
-            UPDATE attendance
-            SET AttendanceStatus = %s, TimeAttended = %s, Reason = %s
+        # Fetch the current status of the student for the specific class
+        cursor.execute("""
+            SELECT AttendanceStatus, TimeAttended FROM attendance
             WHERE StudentID = %s AND ClassID = %s
-            """
-            cursor.execute(update_query, (new_status, time_attended, reason, student_id, class_id))
-            logging.info(f"Rows affected: {cursor.rowcount}")
+        """, (student_id, class_id))
+        current_record = cursor.fetchone()
+
+        if not current_record:
+            logging.error(
+                f"No existing attendance record found for StudentID={student_id}, ClassID={class_id}")
+            return jsonify({"status": "error", "message": "No existing record found"}), 404
+
+        current_status, current_time_attended = current_record
+
+        # Check if time_attended was provided in the request
+        if not time_attended:
+            # Only update TimeAttended if the status changes to 'Present' and was not 'Present' before
+            if current_status != 'Present' and new_status == 'Present':
+                time_attended = datetime.now().strftime('%H:%M:%S')  # Set to current time
+                logging.info(
+                    f"TimeAttended updated to current time: {time_attended}")
+            else:
+                time_attended = current_time_attended  # Retain the current time
+        else:
+            logging.info(f"TimeAttended manually updated to: {time_attended}")
+
+        logging.info(
+            f"Updating record: StudentID={student_id}, ClassID={class_id}, Status={new_status}, Time={time_attended}, Reason={reason}")
+
+        # Update the attendance record
+        update_query = """
+        UPDATE attendance
+        SET AttendanceStatus = %s, TimeAttended = %s, Reason = %s
+        WHERE StudentID = %s AND ClassID = %s
+        """
+        cursor.execute(update_query, (new_status, time_attended,
+                       reason, student_id, class_id))
+        logging.info(f"Rows affected: {cursor.rowcount}")
 
         conn.commit()
         logging.info("Database committed successfully")
@@ -579,7 +629,8 @@ def class_attendance():
         cursor.execute(date_range_query)
         oldest_class_date, latest_class_date = cursor.fetchone()
 
-        logging.debug(f"Oldest class date: {oldest_class_date}, Latest class date: {latest_class_date}")
+        logging.debug(
+            f"Oldest class date: {oldest_class_date}, Latest class date: {latest_class_date}")
 
         query = """
         SELECT 
@@ -644,7 +695,8 @@ def class_attendance():
     except Exception as e:
         logging.error(f"Error fetching attendance data: {e}")
         return jsonify({"error": "An error occurred fetching data"}), 500
-    
+
+
 @app.route('/create_marks', methods=['GET', 'POST'])
 def create_marks():
     conn = get_db_connection()
@@ -671,7 +723,8 @@ def create_marks():
         INSERT INTO marks (StudentID, Subject, TestType, MarksObtained, TotalMarks, Weightage)
         VALUES (%s, %s, %s, %s, %s, %s)
         """
-        cursor.execute(insert_query, (student_id, subject, test_type, marks_obtained, total_marks, weightage))
+        cursor.execute(insert_query, (student_id, subject,
+                       test_type, marks_obtained, total_marks, weightage))
         conn.commit()
 
         cursor.close()
@@ -684,7 +737,6 @@ def create_marks():
 
     # Pass both students and subjects to the template
     return render_template('create_marks.html', students=students, subjects=subjects)
-
 
 
 @app.route("/export_class_attendance", methods=["GET", "POST"])
@@ -710,7 +762,8 @@ def export_class_attendance():
         """, (selected_subject_id, selected_class_date))
         attendance_data = cursor.fetchall()
         # Fetch the subject name to include in the filename
-        cursor.execute("SELECT SubjectName FROM subject WHERE SubjectID = %s", (selected_subject_id,))
+        cursor.execute(
+            "SELECT SubjectName FROM subject WHERE SubjectID = %s", (selected_subject_id,))
         subject_name = cursor.fetchone()[0]
 
         # Initialize categorized attendance dictionary for all statuses
@@ -738,7 +791,8 @@ def export_class_attendance():
             writer.writerow([status, ", ".join(students)])
 
         output.seek(0)
-        formatted_date = datetime.strptime(selected_class_date, '%Y-%m-%d').strftime('%Y-%m-%d')
+        formatted_date = datetime.strptime(
+            selected_class_date, '%Y-%m-%d').strftime('%Y-%m-%d')
         filename = f"{subject_name}_{formatted_date}.csv"
         # Generate a response with the CSV file for download
         response = make_response(output.getvalue())
@@ -768,11 +822,13 @@ def get_classes():
 
     try:
         # Fetch class dates for the selected subject
-        cursor.execute("SELECT ClassDate FROM classes WHERE SubjectID = %s", (subject_id,))
+        cursor.execute(
+            "SELECT ClassDate FROM classes WHERE SubjectID = %s", (subject_id,))
         class_dates = cursor.fetchall()
 
         # Create a list of class dates to return as JSON
-        result = {"classes": [{"ClassDate": class_date[0].strftime('%Y-%m-%d')} for class_date in class_dates]}
+        result = {"classes": [{"ClassDate": class_date[0].strftime(
+            '%Y-%m-%d')} for class_date in class_dates]}
         return jsonify(result)
 
     except Exception as e:
@@ -808,7 +864,8 @@ def export_marks():
         writer = csv.writer(output)
 
         # Write header
-        writer.writerow(["SubjectID", "Test Type", "Marks Obtained", "Total Marks", "Weightage"])
+        writer.writerow(["SubjectID", "Test Type",
+                        "Marks Obtained", "Total Marks", "Weightage"])
 
         # Write marks data
         for row in marks_data:
@@ -817,7 +874,8 @@ def export_marks():
         output.seek(0)
 
         # Fetch student name for filename
-        cursor.execute("SELECT StudentName FROM student WHERE StudentID = %s", (selected_student_id,))
+        cursor.execute(
+            "SELECT StudentName FROM student WHERE StudentID = %s", (selected_student_id,))
         student_name = cursor.fetchone()[0]
 
         # Create a filename using the student name
@@ -839,15 +897,15 @@ def export_marks():
     return render_template("export_marks.html", students=students)
 
 
-# Store user log in  
+# Store user log in
 
-#CREATE TABLE `users` (
+# CREATE TABLE `users` (
 #  `user_id` int NOT NULL AUTO_INCREMENT,
 #  `username` varchar(50) NOT NULL,
 #  `password` varchar(200) NOT NULL,
 #  `role` int NOT NULL,
 #  PRIMARY KEY (`user_id`)
-#) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+# ) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 @app.route('/', methods=['GET', 'POST'])
 def login():
@@ -859,22 +917,25 @@ def login():
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute("select password from users where username = %s", (request.form['username'],))
+            cursor.execute(
+                "select password from users where username = %s", (request.form['username'],))
             hashed_pwd = cursor.fetchall()
-            
+
             if hashed_pwd != []:
-                authoriseBool = check_password_hash(hashed_pwd[0][0], request.form['password'])
+                authoriseBool = check_password_hash(
+                    hashed_pwd[0][0], request.form['password'])
 
                 if authoriseBool:
-                    cursor.execute("select user_id, role from users where username = %s", (request.form['username'],))
+                    cursor.execute(
+                        "select user_id, role from users where username = %s", (request.form['username'],))
                     result = cursor.fetchone()
                     session['user_id'] = result[0]
-                    session['role'] = result[1] 
+                    session['role'] = result[1]
                     return redirect(url_for('homepage'))
                 else:
                     flash('incorrect username and password, try again')
                     return redirect(url_for('login'))
-                
+
             else:
                 flash('incorrect username and password, try again')
                 return redirect(url_for('login'))
@@ -886,7 +947,7 @@ def login():
         finally:
             cursor.close()
             conn.close()
-        
+
     else:
         # by default will run this when first navigated to
         conn = get_db_connection()
@@ -895,11 +956,12 @@ def login():
         # check if already logged in, if yes redirect back to homepage
         if 'user_id' in session and 'role' in session:
             try:
-                cursor.execute("select role from users where user_id = %s", (session['user_id'],))
+                cursor.execute(
+                    "select role from users where user_id = %s", (session['user_id'],))
                 actual_role = cursor.fetchall()[0][0]
 
                 if actual_role == session['role']:
-                    return redirect(url_for('homepage')) 
+                    return redirect(url_for('homepage'))
 
             except mysql.connector.Error as err:
                 flash(f"Error: {err}")
@@ -909,16 +971,20 @@ def login():
                 cursor.close()
                 conn.close()
 
-        return render_template('login.html')    
+        return render_template('login.html')
+
 
 @app.route('/homepage', methods=['GET', 'POST'])
 def homepage():
     return render_template('homepage.html')
 
 # to edit later
+
+
 @app.route('/forgetpassword')
 def forgetpassword():
     return render_template("forgetpassword.html")
+
 
 @app.route('/logout')
 def logout():
@@ -927,6 +993,7 @@ def logout():
     flash("You have successfully logged out")
     return redirect(url_for('login'))
 
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -934,13 +1001,15 @@ def register():
         cursor = conn.cursor()
         try:
             hashed_password = generate_password_hash(request.form['password'])
-            cursor.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, 0)", (request.form['username'], hashed_password))
+            cursor.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, 0)",
+                           (request.form['username'], hashed_password))
             if cursor.rowcount == 0:
                 flash("Username already exists, try another name")
                 return redirect(url_for('register.html'))
             conn.commit()
 
-            cursor.execute("select user_id, role from users where username = %s", (request.form['username'],))
+            cursor.execute(
+                "select user_id, role from users where username = %s", (request.form['username'],))
             result = cursor.fetchone()
             session['user_id'] = result[0]
             session['role'] = result[1]  # Store the role
@@ -962,11 +1031,12 @@ def register():
         # check if already logged in, if yes redirect back to homepage
         if 'user_id' in session and 'role' in session:
             try:
-                cursor.execute("select role from users where user_id = %s", (session['user_id'],))
+                cursor.execute(
+                    "select role from users where user_id = %s", (session['user_id'],))
                 actual_role = cursor.fetchall()[0][0]
 
                 if actual_role == session['role']:
-                    return redirect(url_for('homepage')) 
+                    return redirect(url_for('homepage'))
             except:
                 flash(f"Error: {err}")
                 conn.rollback()
@@ -981,11 +1051,12 @@ def register():
 def errorPage(err):
     return render_template('error.html', error=err)
 
+
 @app.route('/generate_report', methods=['GET', 'POST'])
 def generate_report():
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("SELECT ClassDate FROM classes")
     classDates = cursor.fetchall()
     years = [row[0].year for row in classDates]
@@ -994,7 +1065,7 @@ def generate_report():
     years = []
 
     list_of_years = range(min_year, max_year+1)
-    
+
     for n in list_of_years:
         years.append(n)
 
@@ -1009,17 +1080,20 @@ def generate_report():
         selected_student_id = request.form.get('selected_student')
 
         # querying all the data to popualate the fields
-        name, marks_data, attendanceByStatus, year = retrieveDetails(selected_student_id, selected_year, selected_report)
-        
-        data = {"name": name, "marks": marks_data, "attendanceByStatus" : attendanceByStatus, "year": year}
+        name, marks_data, attendanceByStatus, year = retrieveDetails(
+            selected_student_id, selected_year, selected_report)
+
+        data = {"name": name, "marks": marks_data,
+                "attendanceByStatus": attendanceByStatus, "year": year}
 
         if selected_report == "0":
-            return render_template('report_overall_template.html', data = data)
+            return render_template('report_overall_template.html', data=data)
         else:
-            return render_template('report_progress_template.html', data = data)
+            return render_template('report_progress_template.html', data=data)
 
     else:
-        return render_template('generate_report.html', students = students, years = years)
+        return render_template('generate_report.html', students=students, years=years)
+
 
 def retrieveDetails(student_id, year, selected_report):
     conn = get_db_connection()
@@ -1033,7 +1107,7 @@ def retrieveDetails(student_id, year, selected_report):
         """, (student_id,))
 
         name = cursor.fetchall()
-        
+
     except Exception as e:
         print(f"An error occurred: {e}")
 
@@ -1056,13 +1130,13 @@ def retrieveDetails(student_id, year, selected_report):
 
     except Exception as e:
         print(f"An error occurred: {e}")
-    
+
     # Initialize variables to calculate overall marks
     marks_data = {}
 
     for row in results:
         student_id, subject, marks_obtained, total_marks, weightage = row
-        
+
         if subject not in marks_data:
             if marks_obtained == 0:
                 marks_data[subject] = 0
@@ -1074,9 +1148,8 @@ def retrieveDetails(student_id, year, selected_report):
             else:
                 marks_data[subject] += marks_obtained / total_marks * weightage
 
-
     for n in marks_data:
-            marks_data[n] = [marks_data[n] , get_grade(marks_data[n])]
+        marks_data[n] = [marks_data[n], get_grade(marks_data[n])]
 
     cursor.execute("""
         SELECT a.AttendanceStatus, COUNT(*) AS numOfAttendance 
@@ -1095,10 +1168,10 @@ def retrieveDetails(student_id, year, selected_report):
         attendanceByStatus['Absent with VR'] = 0
 
     if 'Late' not in attendanceByStatus:
-        attendanceByStatus['Late'] = 0    
+        attendanceByStatus['Late'] = 0
 
     if 'Present' not in attendanceByStatus:
-        attendanceByStatus['Present'] = 0       
+        attendanceByStatus['Present'] = 0
 
     attendanceByStatus['total'] = totalSum
 
@@ -1107,6 +1180,7 @@ def retrieveDetails(student_id, year, selected_report):
     print(name, marks_data, attendanceByStatus, year)
 
     return name, marks_data, attendanceByStatus, year
+
 
 def get_grade(score):
     if 75 <= score <= 100:
@@ -1119,7 +1193,8 @@ def get_grade(score):
         return 'D'
     elif 0 <= score <= 49:
         return 'E'
-    
+
+
 @app.route('/get_students_by_year', methods=['GET'])
 def get_students_by_year():
     selected_year = request.args.get('year')
@@ -1144,7 +1219,8 @@ def get_students_by_year():
         data = cursor.fetchall()
 
         # Format the results as a list of dictionaries
-        student_list = [{"StudentID": student[0], "StudentName": student[1]} for student in data]
+        student_list = [{"StudentID": student[0],
+                         "StudentName": student[1]} for student in data]
 
         return student_list
 
@@ -1160,22 +1236,25 @@ def get_students_by_year():
 @app.before_request
 def check_user_logged_in():
     # List of routes that do not require login
-    public_routes = ['register', 'login', 'error', 'static']  # Elements + js in static, accessible before login pages are listed 
+    # Elements + js in static, accessible before login pages are listed
+    public_routes = ['register', 'login', 'error', 'static']
     if 'user_id' not in session and 'role' not in session and request.endpoint not in public_routes:
         flash("Unauthorised access, log in and try again")
-        return redirect(url_for('login'))  # Redirect to login if user_id is not in session
-    
+        # Redirect to login if user_id is not in session
+        return redirect(url_for('login'))
+
     elif request.endpoint not in public_routes:
         conn = get_db_connection()
         cursor = conn.cursor()
 
         try:
-            cursor.execute("select role from users where user_id = %s", (session['user_id'],))
+            cursor.execute(
+                "select role from users where user_id = %s", (session['user_id'],))
             actual_role = cursor.fetchall()[0][0]
 
             if actual_role != session['role']:
                 flash("Unauthorised access, log in and try again")
-                return redirect(url_for('login')) 
+                return redirect(url_for('login'))
 
         except mysql.connector.Error as err:
             flash(f"Error: {err}")
@@ -1183,7 +1262,6 @@ def check_user_logged_in():
             cursor.close()
             conn.close()
             return redirect(url_for('login'))
-
 
 
 if __name__ == "__main__":
