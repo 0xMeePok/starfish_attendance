@@ -45,75 +45,159 @@ scheduler.start()
 bot_manager = None
 first_request = True
 
-"""
+# Add this near the top with other globals
+TEST_MODE = True  # Set to True to use test timing
+TEST_DELAY_MINUTES = 1  # Bot will start this many minutes from now
+
+def ensure_bot_manager():
+    """Ensure bot manager is initialized"""
+    global bot_manager
+    if bot_manager is None:
+        try:
+            logger.info("Initializing bot manager...")
+            bot_manager = BotManager()
+            logger.info("Bot manager initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize bot manager: {e}")
+            raise
+
+@app.route('/test/start_bot', methods=['POST'])
+def test_start_bot():
+    try:
+        # Ensure bot manager is initialized
+        ensure_bot_manager()
+        
+        if bot_manager:
+            logger.info("Starting bot via test endpoint...")
+            bot_manager.start_bot()
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'Bot started manually',
+                'bot_running': bot_manager.is_running,
+                'bot_initialized': bot_manager.bot is not None
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to initialize bot manager'
+            }), 500
+    except Exception as e:
+        logger.error(f"Error in test_start_bot: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/test/stop_bot', methods=['POST'])
+def test_stop_bot():
+    if bot_manager:
+        try:
+            bot_manager.stop_bot()
+            return jsonify({
+                'status': 'success',
+                'message': 'Bot stopped successfully',
+                'bot_running': bot_manager.is_running
+            })
+        except Exception as e:
+            logger.error(f"Error stopping bot: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+    return jsonify({
+        'status': 'error',
+        'message': 'Bot manager not initialized'
+    }), 500
+
+@app.route('/status')
+def check_status():
+    try:
+        # Try to ensure bot manager exists
+        if bot_manager is None:
+            ensure_bot_manager()
+
+        jobs_info = []
+        for job in scheduler.get_jobs():
+            jobs_info.append({
+                'id': job.id,
+                'next_run': str(job.next_run_time),
+                'pending': job.pending
+            })
+
+        return jsonify({
+            'scheduler_running': scheduler.running,
+            'bot_manager_initialized': bot_manager is not None,
+            'bot_running': bot_manager.is_running if bot_manager else False,
+            'test_mode': TEST_MODE,
+            'current_time': str(datetime.now()),
+            'scheduled_jobs': jobs_info,
+            'bot_token_exists': bool(os.getenv('BOT_TOKEN'))  # Add this to check if token exists
+        })
+    except Exception as e:
+        logger.error(f"Error in status check: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
 def init_bot():
     global bot_manager
     try:
         if bot_manager is None:
             logger.info("Initializing bot manager...")
             bot_manager = BotManager()
+            
+            if TEST_MODE:
+                # Schedule bot to start after TEST_DELAY_MINUTES
+                next_run = datetime.now() + timedelta(minutes=TEST_DELAY_MINUTES)
+                logger.info(f"Test mode: Bot will start at {next_run}")
+                
+                scheduler.add_job(
+                    bot_manager.start_bot,
+                    trigger='date',
+                    run_date=next_run,
+                    id='start_bot',
+                    replace_existing=True
+                )
 
-            # Schedule bot to start at 10:15 AM every Monday
-            scheduler.add_job(
-                bot_manager.start_bot,
-                trigger=CronTrigger(
-                    day_of_week='mon',
-                    hour=10,
-                    minute=15
-                ),
-                id='start_bot'
-            )
+                # Schedule bot to stop 30 minutes after start
+                stop_time = next_run + timedelta(minutes=30)
+                scheduler.add_job(
+                    bot_manager.stop_bot,
+                    trigger='date',
+                    run_date=stop_time,
+                    id='stop_bot',
+                    replace_existing=True
+                )
+            else:
+                # Normal Monday scheduling
+                scheduler.add_job(
+                    bot_manager.start_bot,
+                    trigger=CronTrigger(
+                        day_of_week='mon',
+                        hour=10,
+                        minute=15
+                    ),
+                    id='start_bot',
+                    replace_existing=True
+                )
 
-            # Schedule bot to stop at 11:59 PM every Monday
-            scheduler.add_job(
-                bot_manager.stop_bot,
-                trigger=CronTrigger(
-                    day_of_week='mon',
-                    hour=23,
-                    minute=59
-                ),
-                id='stop_bot'
-            )
-
+                scheduler.add_job(
+                    bot_manager.stop_bot,
+                    trigger=CronTrigger(
+                        day_of_week='mon',
+                        hour=23,
+                        minute=59
+                    ),
+                    id='stop_bot',
+                    replace_existing=True
+                )
+            
             logger.info("Bot manager initialized and scheduled")
     except Exception as e:
         logger.error(f"Error initializing bot manager: {e}")
 
-# Initialize bot after first request
-
-
-@app.before_request
-def before_request():
-    global first_request
-    if first_request:
-        init_bot()
-        first_request = False
-
-# Clean up function
-
-
-def cleanup():
-    logger.info("Cleaning up...")
-    if bot_manager:
-        bot_manager.shutdown()
-    if scheduler.running:
-        scheduler.shutdown()
-
-
-# Register cleanup function
-atexit.register(cleanup)
-
-# Add a route to check scheduler and bot status
-
-
-@app.route('/status')
-def check_status():
-    return jsonify({
-        'scheduler_running': scheduler.running,
-        'bot_manager_initialized': bot_manager is not None,
-        'bot_running': bot_manager.is_running if bot_manager else False
-    })
-"""
 
 # Database connection details using environment variables
 db_config = {
