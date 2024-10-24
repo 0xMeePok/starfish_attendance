@@ -144,13 +144,13 @@
             
             let sortColumn = 'ClassDate';
             let sortDirection = 'desc';
-
+        
             function updateStudentDropdown() {
                 const filterValue = studentFilter.value.toLowerCase();
                 const filteredStudents = allStudents.filter(student => 
                     student.toLowerCase().includes(filterValue)
                 );
-
+        
                 studentDropdown.innerHTML = '';
                 filteredStudents.forEach(student => {
                     const item = document.createElement('div');
@@ -163,10 +163,10 @@
                     });
                     studentDropdown.appendChild(item);
                 });
-
+        
                 studentDropdown.style.display = filteredStudents.length > 0 ? 'block' : 'none';
             }
-
+        
             studentFilter.addEventListener('input', updateStudentDropdown);
             studentFilter.addEventListener('focus', updateStudentDropdown);
             
@@ -175,41 +175,40 @@
                     studentDropdown.style.display = 'none';
                 }
             });
-
+        
             function filterAttendance() {
                 const nameFilter = studentFilter.value.toLowerCase();
                 const subjectFilterValue = subjectFilter.value.toLowerCase();
                 const dateFilterValue = dateFilter.value;
-
+        
                 const filteredData = attendanceData.filter(row => {
                     const nameMatch = row.StudentName.toLowerCase().includes(nameFilter);
                     const subjectMatch = row.SubjectName.toLowerCase().includes(subjectFilterValue);
                     const dateMatch = !dateFilterValue || row.ClassDate === dateFilterValue;
                     return nameMatch && subjectMatch && dateMatch;
                 });
-
+        
                 const sortedData = sortData(filteredData);
                 updateTable(sortedData);
             }
-
+        
             function updateTable(filteredData) {
                 let tableHTML = `
-                    <form id="attendanceForm">
-                        <div class="table-responsive">
-                            <table class="table table-striped table-hover">
-                                <thead>
-                                    <tr>
-                                        <th class="sortable" data-column="StudentName">Student Name <span class="sort-icon"></span></th>
-                                        <th class="sortable" data-column="ClassDate">Date of Class <span class="sort-icon"></span></th>
-                                        <th class="sortable" data-column="SubjectName">Subject <span class="sort-icon"></span></th>
-                                        <th class="sortable" data-column="TimeAttended">Time Attended <span class="sort-icon"></span></th>
-                                        <th class="sortable" data-column="AttendanceStatus">Attendance Status <span class="sort-icon"></span></th>
-                                        <th>Reason</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th class="sortable" data-column="StudentName">Student Name <span class="sort-icon"></span></th>
+                                    <th class="sortable" data-column="ClassDate">Date of Class <span class="sort-icon"></span></th>
+                                    <th class="sortable" data-column="SubjectName">Subject <span class="sort-icon"></span></th>
+                                    <th class="sortable" data-column="TimeAttended">Time Attended <span class="sort-icon"></span></th>
+                                    <th class="sortable" data-column="AttendanceStatus">Attendance Status <span class="sort-icon"></span></th>
+                                    <th>Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody>
                 `;
-
+        
                 filteredData.forEach(row => {
                     tableHTML += `
                         <tr>
@@ -223,7 +222,7 @@
                                        data-class-id="${row.ClassID}">
                             </td>
                             <td>
-                                <select class="form-select attendance-status" data-student-id="${row.StudentID}" data-class-id="${row.ClassID}" name="status_${row.StudentID}_${row.ClassID}">
+                                <select class="form-select attendance-status" data-student-id="${row.StudentID}" data-class-id="${row.ClassID}">
                                     <option value="Present" ${row.AttendanceStatus === 'Present' ? 'selected' : ''}>Present</option>
                                     <option value="Late" ${row.AttendanceStatus === 'Late' ? 'selected' : ''}>Late</option>
                                     <option value="Absent" ${row.AttendanceStatus === 'Absent' ? 'selected' : ''}>Absent</option>
@@ -236,29 +235,67 @@
                         </tr>
                     `;
                 });
-
+        
                 tableHTML += `
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="d-grid gap-2 col-md-6 mx-auto mt-4">
-                            <button type="submit" class="btn btn-primary btn-lg">Update Attendance</button>
-                        </div>
-                    </form>
+                            </tbody>
+                        </table>
+                    </div>
                 `;
-
+        
                 attendanceTableContainer.innerHTML = tableHTML;
                 
                 // Re-attach event listeners
-                document.getElementById('attendanceForm').addEventListener('submit', handleFormSubmit);
-                document.querySelectorAll('.sortable').forEach(th => {
-                    th.addEventListener('click', handleSort);
+                document.querySelectorAll('.attendance-status').forEach(select => {
+                    select.addEventListener('change', handleDynamicUpdate);
                 });
-
-                // Update sort icons
-                updateSortIcons();
+        
+                document.querySelectorAll('.time-attended').forEach(input => {
+                    input.addEventListener('change', handleDynamicUpdate);
+                });
+        
+                document.querySelectorAll('.reason-input').forEach(input => {
+                    input.addEventListener('input', handleDynamicUpdate);
+                });
             }
-
+        
+            function handleDynamicUpdate(event) {
+                const target = event.target;
+                const studentId = target.dataset.studentId;
+                const classId = target.dataset.classId;
+        
+                const statusElement = document.querySelector(`.attendance-status[data-student-id="${studentId}"][data-class-id="${classId}"]`);
+                const timeElement = document.querySelector(`.time-attended[data-student-id="${studentId}"][data-class-id="${classId}"]`);
+                const reasonElement = document.querySelector(`.reason-input[data-student-id="${studentId}"][data-class-id="${classId}"]`);
+        
+                const updatedRecord = {
+                    StudentID: studentId,
+                    ClassID: classId,
+                    AttendanceStatus: statusElement.value,
+                    TimeAttended: timeElement ? timeElement.value : '',
+                    Reason: reasonElement ? reasonElement.value : ''
+                };
+        
+                // Send the update to the server via fetch
+                fetch('/update_attendance', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(updatedRecord),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Response from server:', data);
+                    if (data.status !== 'success') {
+                        alert('Failed to update attendance: ' + (data.message || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while updating attendance');
+                });
+            }
+        
             function sortData(data) {
                 return data.sort((a, b) => {
                     if (a[sortColumn] < b[sortColumn]) return sortDirection === 'asc' ? -1 : 1;
@@ -266,93 +303,16 @@
                     return 0;
                 });
             }
-
-            function handleSort(event) {
-                const column = event.currentTarget.dataset.column;
-                if (sortColumn === column) {
-                    sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-                } else {
-                    sortColumn = column;
-                    sortDirection = 'asc';
-                }
-                filterAttendance();
-            }
-
-            function updateSortIcons() {
-                document.querySelectorAll('.sort-icon').forEach(icon => {
-                    icon.innerHTML = '';
-                });
-                const currentIcon = document.querySelector(`th[data-column="${sortColumn}"] .sort-icon`);
-                if (currentIcon) {
-                    currentIcon.innerHTML = sortDirection === 'asc' ? '&#9650;' : '&#9660;';
-                }
-            }
-
-            function handleFormSubmit(event) {
-                event.preventDefault();
-                
-                const updatedAttendance = [];
-
-                document.querySelectorAll('.attendance-status').forEach(statusElement => {
-                    const studentId = statusElement.dataset.studentId;
-                    const classId = statusElement.dataset.classId;
-                    const timeElement = document.querySelector(`.time-attended[data-student-id="${studentId}"][data-class-id="${classId}"]`);
-                    const reasonElement = document.querySelector(`.reason-input[data-student-id="${studentId}"][data-class-id="${classId}"]`);
-                    
-                    const record = {
-                        StudentID: studentId,
-                        ClassID: classId,
-                        AttendanceStatus: statusElement.value,
-                        TimeAttended: timeElement ? timeElement.value : '',
-                        Reason: reasonElement ? reasonElement.value : ''
-                    };
-                    
-                    updatedAttendance.push(record);
-                });
-
-                console.log('Data being sent to server:', JSON.stringify(updatedAttendance));
-
-                fetch('/update_attendance', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(updatedAttendance),
-                })
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Response from server:', data);
-                    if (data.status === 'success') {
-                        alert('Attendance updated successfully');
-                        // Update the local attendance data
-                        updatedAttendance.forEach(update => {
-                            const record = attendanceData.find(r => r.StudentID == update.StudentID && r.ClassID == update.ClassID);
-                            if (record) {
-                                record.AttendanceStatus = update.AttendanceStatus;
-                                record.TimeAttended = update.TimeAttended;
-                                record.Reason = update.Reason;
-                            }
-                        });
-                        // Refresh the table with updated data
-                        filterAttendance();
-                    } else {
-                        alert('Failed to update attendance: ' + (data.message || 'Unknown error'));
-                    }
-                })
-                .catch((error) => {
-                    console.error('Error:', error);
-                    alert('An error occurred while updating attendance');
-                });
-            }
-
-            // Add event listeners
+        
+            // Add event listeners for filters
             studentFilter.addEventListener('input', filterAttendance);
             subjectFilter.addEventListener('change', filterAttendance);
             dateFilter.addEventListener('change', filterAttendance);
-
+        
             // Initial table update
             filterAttendance();
         });
-    </script>
+        </script>
+        
 </body>
 </html>
