@@ -81,7 +81,6 @@
 
     <div class="container mt-5">
         <h2 class="text-center mb-4">Enroll Student</h2>
-
         <form action="{{ url_for('enroll_classes') }}" method="post">
             <div class="mb-3">
                 <label for="student_id" class="form-label">Select Student</label>
@@ -97,9 +96,6 @@
                 <label for="subject_id" class="form-label">Select Subject</label>
                 <select class="form-select" id="subject_id" name="subject_id" required>
                     <option value="">Select a subject</option>
-                    {% for subject in subjects %}
-                    <option value="{{ subject.SubjectID }}">{{ subject.SubjectName }}</option>
-                    {% endfor %}
                 </select>
             </div>
 
@@ -108,8 +104,29 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/imask/6.4.3/imask.min.js"></script>
-    
+    <script>
+        document.getElementById("student_id").addEventListener("change", function() {
+            const studentId = this.value;
+            const subjectDropdown = document.getElementById("subject_id");
+            
+            // Clear the subject dropdown
+            subjectDropdown.innerHTML = '<option value="">Select a subject</option>';
+
+            if (studentId) {
+                fetch(`/get_unenrolled_subjects/${studentId}`)
+                    .then(response => response.json())
+                    .then(subjects => {
+                        subjects.forEach(subject => {
+                            const option = document.createElement("option");
+                            option.value = subject.SubjectID;
+                            option.textContent = subject.SubjectName;
+                            subjectDropdown.appendChild(option);
+                        });
+                    })
+                    .catch(error => console.error("Error fetching subjects:", error));
+            }
+        });
+    </script>
 </body>
 
 </html>
