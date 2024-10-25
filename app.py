@@ -314,43 +314,77 @@ def enroll_classes():
     cursor.execute("SELECT StudentID, StudentName FROM student")
     students = cursor.fetchall()
 
-    # Fetch all subjects for the dropdown
-    cursor.execute("SELECT SubjectID, SubjectName FROM subject")
-    subjects = cursor.fetchall()
+    # Initialize an empty subjects list
+    subjects = []
 
     if request.method == 'POST':
         student_id = request.form['student_id']
-        subject_id = request.form['subject_id']
 
-        # Enroll the student in the subject (Insert into StudentSubjects)
+        # Fetch subjects that the student is NOT enrolled in
         cursor.execute("""
-            INSERT INTO studentsubjects (StudentID, SubjectID)
-            VALUES (%s, %s)
-        """, (student_id, subject_id))
+            SELECT s.SubjectID, s.SubjectName 
+            FROM subject s
+            WHERE s.SubjectID NOT IN (
+                SELECT ss.SubjectID 
+                FROM studentsubjects ss 
+                WHERE ss.StudentID = %s
+            )
+        """, (student_id,))
+        subjects = cursor.fetchall()
 
-        # Get all classes for the given SubjectID
-        cursor.execute("""
-            SELECT ClassID FROM classes WHERE SubjectID = %s
-        """, (subject_id,))
-        classes = cursor.fetchall()
+        if 'subject_id' in request.form:
+            subject_id = request.form['subject_id']
 
-        # Create attendance records for the student for each class
-        for class_record in classes:
+            # Enroll the student in the subject (Insert into StudentSubjects)
             cursor.execute("""
-                INSERT INTO attendance (StudentID, ClassID, AttendanceStatus)
-                VALUES (%s, %s, 'Absent')
-            """, (student_id, class_record['ClassID']))
+                INSERT INTO studentsubjects (StudentID, SubjectID)
+                VALUES (%s, %s)
+            """, (student_id, subject_id))
 
-        conn.commit()
-        cursor.close()
-        conn.close()
+            # Get all classes for the given SubjectID
+            cursor.execute("""
+                SELECT ClassID FROM classes WHERE SubjectID = %s
+            """, (subject_id,))
+            classes = cursor.fetchall()
 
-        return redirect(url_for('enroll_classes'))
+            # Create attendance records for the student for each class
+            for class_record in classes:
+                cursor.execute("""
+                    INSERT INTO attendance (StudentID, ClassID, AttendanceStatus)
+                    VALUES (%s, %s, 'Absent')
+                """, (student_id, class_record['ClassID']))
+
+            conn.commit()
+            return redirect(url_for('enroll_classes'))
 
     cursor.close()
     conn.close()
 
     return render_template('enroll_classes.html', students=students, subjects=subjects)
+
+
+@app.route('/get_unenrolled_subjects/<int:student_id>')
+def get_unenrolled_subjects(student_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Fetch subjects that the student is NOT enrolled in
+    cursor.execute("""
+        SELECT s.SubjectID, s.SubjectName 
+        FROM subject s
+        WHERE s.SubjectID NOT IN (
+            SELECT ss.SubjectID 
+            FROM studentsubjects ss 
+            WHERE ss.StudentID = %s
+        )
+    """, (student_id,))
+    subjects = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+    
+    return jsonify(subjects)
+
 
 
 # Attendance related functions
