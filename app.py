@@ -863,11 +863,12 @@ def export_marks():
     if request.method == "POST":
         selected_student_id = request.form.get("selected_student")
 
-        # Fetch marks data for the selected student
+        # Fetch marks data for the selected student, including SubjectName
         cursor.execute("""
-            SELECT SubjectID, TestType, MarksObtained, TotalMarks, Weightage
+            SELECT subject.SubjectName, marks.TestType, marks.MarksObtained, marks.TotalMarks, marks.Weightage
             FROM marks
-            WHERE StudentID = %s
+            JOIN subject ON marks.SubjectID = subject.SubjectID
+            WHERE marks.StudentID = %s
         """, (selected_student_id,))
         marks_data = cursor.fetchall()
 
@@ -876,8 +877,7 @@ def export_marks():
         writer = csv.writer(output)
 
         # Write header
-        writer.writerow(["SubjectID", "Test Type",
-                        "Marks Obtained", "Total Marks", "Weightage"])
+        writer.writerow(["Subject Name", "Test Type", "Marks Obtained", "Total Marks", "Weightage"])
 
         # Write marks data
         for row in marks_data:
@@ -907,6 +907,7 @@ def export_marks():
     cursor.close()
     conn.close()
     return render_template("export_marks.html", students=students)
+
 
 
 # Store user log in
