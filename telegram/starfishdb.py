@@ -32,7 +32,7 @@ class StarfishDB:
     @with_db_connection
     def get_channel_id(self, username):
         """Get the chat_id for a user."""
-        query = "SELECT chat_id FROM user_channels WHERE username = %s"
+        query = "select chat_id from user_channels where username = %s"
         self.cursor.execute(query, (username,))
         result = self.cursor.fetchone()
         print(result)
@@ -41,7 +41,7 @@ class StarfishDB:
     @with_db_connection
     def is_awaiting_response(self, username):
         """Check if we're waiting for a response from this student."""
-        query = "SELECT awaiting_response FROM user_channels WHERE username = %s"
+        query = "select awaiting_response from user_channels where username = %s"
         self.cursor.execute(query, (username,))
         result = self.cursor.fetchone()
         return result['awaiting_response'] if result else False
@@ -50,10 +50,10 @@ class StarfishDB:
     def set_awaiting_response(self, username):
         """Mark a student as awaiting response."""
         query = """
-        UPDATE user_channels 
-        SET awaiting_response = 1,
-            last_updated = CURRENT_TIMESTAMP
-        WHERE username = %s
+        update user_channels 
+        set awaiting_response = 1,
+            last_updated = current_timestamp
+        where username = %s
         """
         self.cursor.execute(query, (username,))
         self.conn.commit()
@@ -62,10 +62,10 @@ class StarfishDB:
     def clear_awaiting_response(self, username):
         """Clear the awaiting response flag."""
         query = """
-        UPDATE user_channels 
-        SET awaiting_response = 0,
-            last_updated = CURRENT_TIMESTAMP
-        WHERE username = %s
+        update user_channels 
+        set awaiting_response = 0,
+            last_updated = current_timestamp
+        where username = %s
         """
         self.cursor.execute(query, (username,))
         self.conn.commit()
@@ -75,14 +75,14 @@ class StarfishDB:
         """Update attendance status and reason."""
         today = date.today()
         query = """
-        UPDATE Attendance a
-        JOIN Student s ON a.StudentID = s.StudentID
-        JOIN Classes c ON a.ClassID = c.ClassID
-        SET a.AttendanceStatus = %s,
-            a.Reason = %s,
-            a.TimeAttended = CURRENT_TIME
-        WHERE s.TelegramUsername = %s
-        AND DATE(c.ClassDate) = %s
+        update attendance a
+        join student s on a.studentid = s.studentid
+        join classes c on a.classid = c.classid
+        set a.attendancestatus = %s,
+            a.reason = %s,
+            a.timeattended = current_time
+        where s.telegramusername = %s
+        and date(c.classdate) = %s
         """
         self.cursor.execute(query, (status, reason, username, today))
         self.conn.commit()
@@ -92,15 +92,15 @@ class StarfishDB:
     def get_absent_students(self, check_date):
         """Get all students who haven't been marked present for today."""
         query = """
-        SELECT DISTINCT
-            s.StudentID,
-            s.StudentName,
-            s.TelegramUsername as username
-        FROM Student s
-        LEFT JOIN Attendance a ON s.StudentID = a.StudentID
-        LEFT JOIN Classes c ON a.ClassID = c.ClassID
-        WHERE DATE(c.ClassDate) = %s
-        AND (a.AttendanceStatus IS NULL OR a.AttendanceStatus = 'Absent')
+        select distinct
+            s.studentid,
+            s.studentname,
+            s.telegramusername as username
+        from student s
+        left join attendance a on s.studentid = a.studentid
+        left join classes c on a.classid = c.classid
+        where date(c.classdate) = %s
+        and (a.attendancestatus is null or a.attendancestatus = 'absent')
         """
         self.cursor.execute(query, (check_date,))
         return self.cursor.fetchall()
@@ -108,17 +108,17 @@ class StarfishDB:
     @with_db_connection
     def get_student_name(self, username):
         """Get student's name from their username."""
-        query = "SELECT StudentName FROM Student WHERE TelegramUsername = %s"
+        query = "select studentname from student where telegramusername = %s"
         self.cursor.execute(query, (username,))
         result = self.cursor.fetchone()
-        return result['StudentName'] if result else None
+        return result['studentname'] if result else None
     
     @with_db_connection
     def update_channel_id(self, username, channel_id):
         """Sets the channel ID for a user."""
-        username = '@'+username
-        print(username,channel_id)
-        query = "UPDATE user_channels SET chat_id = %s WHERE username = %s"
+        username = '@' + username
+        print(username, channel_id)
+        query = "update user_channels set chat_id = %s where username = %s"
         print("xd")
         self.cursor.execute(query, (channel_id, username))
         self.conn.commit()
