@@ -92,6 +92,7 @@ def check_status():
         'scheduler_running': scheduler.running,
         'next_check': str(scheduler.get_job('attendance_check').next_run_time) if scheduler.get_job('attendance_check') else None
     })
+
 # Database connection details using environment variables
 db_config = {
     "host": os.getenv("DB_HOST"),
@@ -113,16 +114,16 @@ def page_not_found(e):
 def internal_server_error(e):
     return render_template('error.html', error="Internal Server Error."), 500
 
-
+"""
 # Custom handler for other exceptions
 @app.errorhandler(Exception)
 def handle_exception(e):
     # Log the error details (only on the server side, not to the user)
     app.logger.error(f"Server error: {str(e)}")
-
+    
     # Return a generic error message
     return render_template('error.html', error="Internal Server Error."), 500
-
+"""
 
 def get_db_connection():
     """Establish a new database connection."""
@@ -731,7 +732,7 @@ def create_marks():
 
         # Insert the marks into the database
         insert_query = """
-        INSERT INTO marks (StudentID, Subject, TestType, MarksObtained, TotalMarks, Weightage)
+        INSERT INTO marks (StudentID, SubjectID, TestType, MarksObtained, TotalMarks, Weightage)
         VALUES (%s, %s, %s, %s, %s, %s)
         """
         cursor.execute(insert_query, (student_id, subject,
@@ -964,25 +965,33 @@ def login():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # check if already logged in, if yes redirect back to homepage
+        # Check if already logged in, if yes redirect back to homepage
         if 'user_id' in session and 'role' in session:
+            conn = get_db_connection()
+            cursor = conn.cursor()
             try:
-                cursor.execute(
-                    "select role from users where user_id = %s", (session['user_id'],))
-                actual_role = cursor.fetchall()[0][0]
-
-                if actual_role == session['role']:
-                    return redirect(url_for('homepage'))
-
+                cursor.execute("SELECT role FROM users WHERE user_id = %s", (session['user_id'],))
+                result = cursor.fetchall()
+        
+                # Check if there is any result before accessing
+                if result:
+                    actual_role = result[0][0]
+                    if actual_role == session['role']:
+                        return redirect(url_for('homepage'))
+                else:
+                    flash("No user data found in the database. Please register first.", "error")
+                    return redirect(url_for('register'))  # Redirect to registration if database is empty
+        
             except mysql.connector.Error as err:
                 flash(f"Error: {err}")
                 conn.rollback()
-
+        
             finally:
                 cursor.close()
                 conn.close()
-
+        
         return render_template('login.html')
+
 
 
 @app.route('/homepage', methods=['GET', 'POST'])
@@ -1014,48 +1023,48 @@ def register():
             hashed_password = generate_password_hash(request.form['password'])
             cursor.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, 0)",
                            (request.form['username'], hashed_password))
-            if cursor.rowcount == 0:
-                flash("Username already exists, try another name")
-                return redirect(url_for('register.html'))
             conn.commit()
 
-            cursor.execute(
-                "select user_id, role from users where username = %s", (request.form['username'],))
+            # Fetch the newly created user's ID and role
+            cursor.execute("SELECT user_id, role FROM users WHERE username = %s", (request.form['username'],))
             result = cursor.fetchone()
-            session['user_id'] = result[0]
-            session['role'] = result[1]  # Store the role
-            cursor.close()
-            conn.close()
 
-            return redirect(url_for('homepage'))
+            # Check if the result is not None
+            if result:
+                session['user_id'] = result[0]
+                session['role'] = result[1]  # Store the role in the session
+                flash("Registration successful!", "success")
+                return redirect(url_for('homepage'))
+            else:
+                flash("An error occurred during registration. Please try again.", "error")
 
         except mysql.connector.Error as err:
-            flash(f"Error: {err}")
+            flash(f"Error: {err}", "error")
             conn.rollback()
+        finally:
             cursor.close()
             conn.close()
-            return render_template('register.html')
-    else:
+
+    # Check if the user is already logged in, redirect to homepage if so
+    elif 'user_id' in session and 'role' in session:
         conn = get_db_connection()
         cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT role FROM users WHERE user_id = %s", (session['user_id'],))
+            result = cursor.fetchone()
 
-        # check if already logged in, if yes redirect back to homepage
-        if 'user_id' in session and 'role' in session:
-            try:
-                cursor.execute(
-                    "select role from users where user_id = %s", (session['user_id'],))
-                actual_role = cursor.fetchall()[0][0]
+            # Verify if result exists and matches the session role
+            if result and result[0] == session['role']:
+                return redirect(url_for('homepage'))
 
-                if actual_role == session['role']:
-                    return redirect(url_for('homepage'))
-            except:
-                flash(f"Error: {err}")
-                conn.rollback()
-                cursor.close()
-                conn.close()
-                return render_template('register.html')
+        except mysql.connector.Error as err:
+            flash(f"Error: {err}", "error")
+        finally:
+            cursor.close()
+            conn.close()
 
-        return render_template('register.html')
+    return render_template('register.html')
+
 
 
 @app.route('/error', methods=['GET', 'POST'])
