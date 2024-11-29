@@ -1216,6 +1216,91 @@ def get_grade(score):
         return 'E'
 
 
+@app.route('/export_subject_attendance', methods=['GET', 'POST'])
+def export_subject_attendance():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Fetch all subjects for the dropdown
+    cursor.execute("SELECT SubjectID, SubjectName FROM subject")
+    subjects = cursor.fetchall()
+
+    if request.method == "POST":
+        selected_subject_id = request.form.get("subject_id")
+
+        # Fetch all classes and dates for the selected subject
+        cursor.execute("""
+            SELECT DISTINCT ClassID, ClassDate 
+            FROM classes 
+            WHERE SubjectID = %s
+            ORDER BY ClassDate
+        """, (selected_subject_id,))
+        classes = cursor.fetchall()
+
+        # Extract just the dates from classes
+        class_dates = [cls[1].strftime('%Y-%m-%d') for cls in classes]
+
+        # Fetch students enrolled in the subject
+        cursor.execute("""
+            SELECT DISTINCT s.StudentID, s.StudentName 
+            FROM student s
+            JOIN studentsubjects ss ON s.StudentID = ss.StudentID
+            WHERE ss.SubjectID = %s
+        """, (selected_subject_id,))
+        students = cursor.fetchall()
+
+        # Fetch attendance for each student for the classes in this subject
+        attendance_data = {}
+        for student_id, _ in students:
+            cursor.execute("""
+                SELECT a.ClassID, a.AttendanceStatus
+                FROM attendance a
+                JOIN classes c ON a.ClassID = c.ClassID
+                WHERE a.StudentID = %s AND c.SubjectID = %s
+            """, (student_id, selected_subject_id))
+            student_attendance = cursor.fetchall()
+            attendance_data[student_id] = {class_id: status for class_id, status in student_attendance}
+
+        # Create CSV
+        output = StringIO()
+        writer = csv.writer(output)
+        
+        # Write header: Student names followed by class dates
+        header = ['Student Name'] + class_dates
+        writer.writerow(header)
+
+        # Write student attendance data
+        for student_id, student_name in students:
+            row = [student_name]
+            for class_date in class_dates:
+                # Find the class ID for this date
+                class_entry = next((cls for cls in classes if cls[1].strftime('%Y-%m-%d') == class_date), None)
+                if class_entry:
+                    class_id = class_entry[0]
+                    row.append(attendance_data.get(student_id, {}).get(class_id, ''))
+            writer.writerow(row)
+
+        output.seek(0)
+        
+        # Get subject name for filename
+        subject_name = next((subject[1] for subject in subjects if subject[0] == int(selected_subject_id)), "Unknown")
+
+        # Generate a response with the CSV file for download
+        response = make_response(output.getvalue())
+        response.headers["Content-Disposition"] = f"attachment; filename={subject_name}_attendance.csv"
+        response.headers["Content-type"] = "text/csv"
+
+        cursor.close()
+        conn.close()
+
+        return response  # This sends the CSV file as a response
+
+    # If it's a GET request, render the form
+    cursor.close()
+    conn.close()
+    return render_template("export_subject_attendance.html", subjects=subjects)
+
+
 @app.route('/get_students_by_year', methods=['GET'])
 def get_students_by_year():
     selected_year = request.args.get('year')
