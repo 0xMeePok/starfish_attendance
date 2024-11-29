@@ -22,6 +22,15 @@ sudo mysql.server start
 flask --app backend.py run
 ```
 
+```python
+python3 -m pip install flask
+python3 -m pip install mysql-connector-python
+python3 -m pip install python-dotenv
+python3 -m pip install pandas
+python3 -m pip install apscheduler
+python3 -m pip install pyTelegramBotAPI
+
+```
 
 # Stack
 
