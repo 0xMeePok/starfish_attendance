@@ -10,6 +10,7 @@ from flask import (
     make_response,
     render_template,
     session,
+    get_flashed_messages,
 )
 import mysql.connector
 import random
@@ -29,12 +30,13 @@ from pathlib import Path
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 import logging
+from mysql.connector import Error as MySQLConnectorError
 
 TELEGRAM_DIR = os.path.join(os.path.dirname(__file__), "telegram")
 sys.path.append(TELEGRAM_DIR)
 
-from telegram.bot import AttendanceBot
-from telegram.starfishdb import StarfishDB
+# from telegram.bot import AttendanceBot
+# from telegram.starfishdb import StarfishDB
 
 # Load environment variables from the .env file
 load_dotenv()
@@ -49,7 +51,7 @@ app.secret_key = os.getenv("SECRET_KEY", "fallback_secret_key")
 UPLOAD_FOLDER = "uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-
+"""
 # Initialize scheduler
 scheduler = BackgroundScheduler()
 scheduler.start()
@@ -114,7 +116,7 @@ def check_status():
             ),
         }
     )
-
+"""
 
 # Database connection details using environment variables
 db_config = {
@@ -1552,6 +1554,159 @@ def edit_student():
     return render_template(
         "edit_student.html", student=student, all_students=all_students
     )
+
+
+@app.route("/edit_marks", methods=["GET", "POST"])
+def edit_marks():
+    conn = get_db_connection()
+
+    if not conn:
+        flash("Could not connect to database!", "error")
+        return redirect(url_for("error"))
+
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        # Fetch data for dropdowns
+        cursor.execute("SELECT StudentID, StudentName FROM student")
+        students = cursor.fetchall()
+
+        cursor.execute("SELECT SubjectID, SubjectName FROM subject")
+        subjects = cursor.fetchall()
+
+        if request.method == "POST":
+            # Process marks update
+            student_id = request.form.get("student_id")
+            subject_id = request.form.get("subject_id")
+            test_type = request.form.get("test_type")
+            marks_obtained = request.form.get("marks_obtained")
+            total_marks = request.form.get("total_marks")
+            weightage = request.form.get("weightage")
+
+            if all(
+                [
+                    student_id,
+                    subject_id,
+                    test_type,
+                    marks_obtained,
+                    total_marks,
+                    weightage,
+                ]
+            ):
+                # Check if record exists
+                cursor.execute(
+                    """
+                    SELECT * FROM marks 
+                    WHERE StudentID = %s AND SubjectID = %s AND TestType = %s
+                    """,
+                    (student_id, subject_id, test_type),
+                )
+                existing_record = cursor.fetchone()
+
+                if existing_record:
+                    # Update record
+                    cursor.execute(
+                        """
+                        UPDATE marks 
+                        SET MarksObtained = %s, TotalMarks = %s, Weightage = %s 
+                        WHERE StudentID = %s AND SubjectID = %s AND TestType = %s
+                        """,
+                        (
+                            marks_obtained,
+                            total_marks,
+                            weightage,
+                            student_id,
+                            subject_id,
+                            test_type,
+                        ),
+                    )
+                    conn.commit()
+                    flash("Marks updated successfully!", "success")
+                else:
+                    flash(
+                        "No existing record found for the given student and subject.",
+                        "error",
+                    )
+            else:
+                flash("All fields are required!", "error")
+
+            return redirect(url_for("edit_marks"))
+
+        # For GET request, populate the form with existing data if selected
+        student_id = request.args.get("student_id")
+        subject_id = request.args.get("subject_id")
+        test_type = request.args.get("test_type")
+
+        mark = None
+        if student_id and subject_id and test_type:
+            cursor.execute(
+                "SELECT * FROM marks WHERE StudentID = %s AND SubjectID = %s AND TestType = %s",
+                (student_id, subject_id, test_type),
+            )
+            mark = cursor.fetchone()
+
+        # Fetch test types for the selected student and subject
+        test_types = []
+        if student_id and subject_id:
+            cursor.execute(
+                "SELECT DISTINCT TestType FROM marks WHERE StudentID = %s AND SubjectID = %s",
+                (student_id, subject_id),
+            )
+            test_types = [row["TestType"] for row in cursor.fetchall()]
+
+        return render_template(
+            "edit_marks.html",
+            students=students,
+            subjects=subjects,
+            mark=mark,
+            test_types=test_types,
+        )
+
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route("/get_test_details", methods=["GET"])
+def get_test_details():
+    student_id = request.args.get("student_id")
+    subject_id = request.args.get("subject_id")
+
+    if not student_id or not subject_id:
+        return jsonify({"error": "Student or subject ID is missing."}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Could not connect to database"}), 500
+
+    with conn.cursor(dictionary=True) as cursor:
+        cursor.execute(
+            """
+            SELECT TestType, MarksObtained, TotalMarks, Weightage 
+            FROM marks 
+            WHERE StudentID = %s AND SubjectID = %s
+            """,
+            (student_id, subject_id),
+        )
+        test_details = cursor.fetchall()
+
+    if not test_details:
+        return (
+            jsonify(
+                {"error": "No records found for the selected student and subject."}
+            ),
+            404,
+        )
+
+    return jsonify(test_details)
+
+
+@app.route("/flash_message", methods=["POST"])
+def flash_message():
+    message = request.form.get("message")
+    if message:
+        flash(message, "error")  # Use the "error" category for this type of message
+    return redirect(url_for("edit_marks"))
 
 
 @app.route("/get_students_by_year", methods=["GET"])
