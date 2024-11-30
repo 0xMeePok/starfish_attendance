@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Marks</title>
+    <script>
+        function fetchTestDetails() {
+            const studentId = document.getElementById("student_id").value;
+            const subjectId = document.getElementById("subject_id").value;
+
+            // Ensure both student and subject are selected before fetching
+            if (!studentId || !subjectId) {
+                resetFormFields(); // Clear fields if either is not selected
+                return;
+            }
+
+            fetch(`/get_test_details?student_id=${studentId}&subject_id=${subjectId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // If no test types are returned, clear fields and trigger a flash message
+                    if (data.length === 0) {
+                        resetFormFields(); // Clear fields
+                        // Trigger a flash message using a hidden form and submission
+                        triggerFlashMessage("No test type inserted for this student.");
+                        return;
+                    }
+
+                    // Populate test types dropdown
+                    const testTypeSelect = document.getElementById("test_type");
+                    testTypeSelect.innerHTML = "";
+
+                    data.forEach(test => {
+                        const option = document.createElement("option");
+                        option.value = test.TestType;
+                        option.textContent = test.TestType;
+                        testTypeSelect.appendChild(option);
+                    });
+
+                    // Prefill the first record by default
+                    if (data.length > 0) {
+                        updateFormFields(data[0]);
+                    }
+                })
+                .catch(error => {
+                    console.error("Error fetching test details:", error);
+                    resetFormFields(); // Clear fields on error
+                });
+        }
+
+    // Function to update form fields with test details
+    function updateFormFields(test) {
+        document.getElementById("test_type").value = test.TestType || "";
+        document.getElementById("marks_obtained").value = test.MarksObtained || "";
+        document.getElementById("total_marks").value = test.TotalMarks || "";
+        document.getElementById("weightage").value = test.Weightage || "";
+    }
+
+    // Function to reset form fields
+    function resetFormFields() {
+        document.getElementById("test_type").innerHTML = "";
+        document.getElementById("marks_obtained").value = "";
+        document.getElementById("total_marks").value = "";
+        document.getElementById("weightage").value = "";
+    }
+
+    // Function to trigger a flash message
+    function triggerFlashMessage(message) {
+        const flashForm = document.createElement("form");
+        flashForm.method = "POST";
+        flashForm.action = "/flash_message";
+        flashForm.style.display = "none";
+
+        const flashInput = document.createElement("input");
+        flashInput.type = "hidden";
+        flashInput.name = "message";
+        flashInput.value = message;
+
+        flashForm.appendChild(flashInput);
+        document.body.appendChild(flashForm);
+
+        flashForm.submit();
+    }
+
+    function updateFieldsBasedOnTestType() {
+        const studentId = document.getElementById("student_id").value;
+        const subjectId = document.getElementById("subject_id").value;
+        const testType = document.getElementById("test_type").value;
+
+        if (!testType) {
+            resetFormFields(); // Clear the fields if no test type is selected
+            return;
+        }
+
+        // Fetch details for the selected test type
+        fetch(`/get_test_details?student_id=${studentId}&subject_id=${subjectId}`)
+            .then(response => response.json())
+            .then(data => {
+                const selectedTest = data.find(test => test.TestType === testType);
+                if (selectedTest) {
+                    updateFormFields(selectedTest);
+                } else {
+                    resetFormFields();
+                }
+            })
+            .catch(error => console.error("Error fetching test details:", error));
+    }
+
+
+    </script>
+</head>
+<body>
+    <h1>Edit Marks</h1>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <ul>
+                {% for category, message in messages %}
+                    <li class="{{ category }}">{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST">
+        <label for="student_id">Student:</label>
+        <select name="student_id" id="student_id" onchange="fetchTestDetails()">
+            <option value="">-- Select Student --</option>
+            {% for student in students %}
+                <option value="{{ student['StudentID'] }}" 
+                    {% if mark and mark['StudentID'] == student['StudentID'] %}selected{% endif %}>
+                    {{ student['StudentName'] }}
+                </option>
+            {% endfor %}
+        </select>
+    
+        <label for="subject_id">Subject:</label>
+        <select name="subject_id" id="subject_id" onchange="fetchTestDetails()">
+            <option value="">-- Select Subject --</option>
+            {% for subject in subjects %}
+                <option value="{{ subject['SubjectID'] }}" 
+                    {% if mark and mark['SubjectID'] == subject['SubjectID'] %}selected{% endif %}>
+                    {{ subject['SubjectName'] }}
+                </option>
+            {% endfor %}
+        </select>
+    
+        <label for="test_type">Test Type:</label>
+        <select name="test_type" id="test_type" onchange="updateFieldsBasedOnTestType()">
+            {% for test_type in test_types %}
+                <option value="{{ test_type }}" 
+                    {% if mark and mark['TestType'] == test_type %}selected{% endif %}>
+                    {{ test_type }}
+                </option>
+            {% endfor %}
+        </select>
+    
+        <label for="marks_obtained">Marks Obtained:</label>
+        <input type="text" name="marks_obtained" id="marks_obtained" 
+               value="{{ mark['MarksObtained'] if mark else '' }}" required>
+    
+        <label for="total_marks">Total Marks:</label>
+        <input type="text" name="total_marks" id="total_marks" 
+               value="{{ mark['TotalMarks'] if mark else '' }}" required>
+    
+        <label for="weightage">Weightage:</label>
+        <input type="text" name="weightage" id="weightage" 
+               value="{{ mark['Weightage'] if mark else '' }}" required>
+    
+        <button type="submit">Update Marks</button>
+    </form>
+    
+</body>
+</html>
