@@ -31,12 +31,13 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 import logging
 from mysql.connector import Error as MySQLConnectorError
+import time
+import requests
 
 TELEGRAM_DIR = os.path.join(os.path.dirname(__file__), "telegram")
 sys.path.append(TELEGRAM_DIR)
 
-# from telegram.bot import AttendanceBot
-# from telegram.starfishdb import StarfishDB
+
 
 # Load environment variables from the .env file
 load_dotenv()
@@ -51,72 +52,314 @@ app.secret_key = os.getenv("SECRET_KEY", "fallback_secret_key")
 UPLOAD_FOLDER = "uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-"""
+
 # Initialize scheduler
 scheduler = BackgroundScheduler()
 scheduler.start()
 
-TEACHER_USERNAME = "@zh1_yangg"  # Replace with actual teacher's username
+import telebot
+from threading import Thread
+
+# Initialize bot with your token
+bot = telebot.TeleBot(os.getenv('BOT_TOKEN'), parse_mode="html")
 bot_instance = None
 
+# When user uses /start command
+@bot.message_handler(commands=['start'])
+def start(message):
+    chat_id = message.chat.id
+    username = message.chat.username
+    if username:
+        username = f"@{username}"
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            # Update the channel ID in user_channels table
+            cursor.execute(
+                "INSERT INTO user_channels (username, chat_id) VALUES (%s, %s) ON DUPLICATE KEY UPDATE chat_id = %s",
+                (username, chat_id, chat_id)
+            )
+            conn.commit()
+            bot.reply_to(message, f"You have been verified as {username}.")
+        except Exception as e:
+            logger.error(f"Error in start command: {e}")
+        finally:
+            cursor.close()
+            conn.close()
+    else:
+        bot.reply_to(message, "Please set a username in your Telegram settings.")
+
+# Route for sending messages via webhook
+@app.route('/send_message', methods=['POST'])
+def send_message():
+    data = request.json
+    username = data.get('username')
+    message_text = data.get('message')
+    
+    if not username or not message_text:
+        return jsonify({"error": "Missing username or message"}), 400
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get chat_id for the user
+        cursor.execute("SELECT chat_id FROM user_channels WHERE username = %s", (username,))
+        result = cursor.fetchone()
+        
+        if result:
+            chat_id = result[0]
+            # Send message
+            message = bot.send_message(chat_id, message_text)
+            # Register next step handler for response
+            bot.register_next_step_handler(message, handle_attendance_response)
+            return jsonify({"status": "success"}), 200
+        else:
+            return jsonify({"error": "User not found"}), 404
+            
+    except Exception as e:
+        logger.error(f"Error sending message: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+def handle_attendance_response(message):
+    """First handler: Process yes/no response about attending class"""
+    chat_id = message.chat.id
+    username = f"@{message.chat.username}" if message.chat.username else None
+    response = message.text.strip().lower()
+    
+    if not username:
+        bot.send_message(chat_id, "Please set a username in Telegram settings.")
+        return
+        
+    # Check if response is clear yes/no
+    if response in ['yes', 'y', 'yeah', 'yep']:
+        bot.send_message(chat_id, "Please provide your reason for being late.")
+        bot.register_next_step_handler(message, handle_late_reason)
+    elif response in ['no', 'n', 'nope', 'cant', "can't", 'cannot']:
+        bot.send_message(chat_id, "Please provide your reason for absence.")
+        bot.register_next_step_handler(message, handle_absent_reason)
+    else:
+        bot.send_message(chat_id, "Please respond with 'yes' or 'no' if you're coming to class today.")
+        bot.register_next_step_handler(message, handle_attendance_response)
+
+def handle_late_reason(message):
+    """Handle reason for being late"""
+    chat_id = message.chat.id
+    username = f"@{message.chat.username}" if message.chat.username else None
+    reason = message.text.strip()
+    
+    update_attendance_records(username, "Late", reason)
+    bot.send_message(chat_id, "Thank you, your late attendance and reason have been recorded for all today's classes.")
+
+def handle_absent_reason(message):
+    """Handle reason for being absent"""
+    chat_id = message.chat.id
+    username = f"@{message.chat.username}" if message.chat.username else None
+    reason = message.text.strip()
+    
+    update_attendance_records(username, "Absent with VR", reason)
+    bot.send_message(chat_id, "Thank you, your absence and reason have been recorded for all today's classes.")
+
+def update_attendance_records(username, status, reason):
+    """Update attendance for all classes today for the student"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get today's date
+        today = datetime.now().date()
+        
+        # Get all classes for the student today
+        cursor.execute("""
+            SELECT DISTINCT c.ClassID, s.StudentID 
+            FROM classes c 
+            JOIN studentsubjects ss ON c.SubjectID = ss.SubjectID
+            JOIN student s ON ss.StudentID = s.StudentID
+            WHERE DATE(c.ClassDate) = %s 
+            AND s.TelegramUsername = %s
+            ORDER BY c.ClassDate ASC
+        """, (today, username))
+        
+        class_info = cursor.fetchall()
+        
+        if class_info:
+            # Update attendance for all classes
+            for class_id, student_id in class_info:
+                cursor.execute("""
+                    INSERT INTO attendance (StudentID, ClassID, AttendanceStatus, Reason, TimeAttended)
+                    VALUES (%s, %s, %s, %s, CURRENT_TIME())
+                    ON DUPLICATE KEY UPDATE 
+                    AttendanceStatus = VALUES(AttendanceStatus),
+                    Reason = VALUES(Reason),
+                    TimeAttended = VALUES(TimeAttended)
+                """, (student_id, class_id, status, reason))
+            
+            conn.commit()
+    
+    except Exception as e:
+        logger.error(f"Error updating attendance records: {e}")
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+def run_bot():
+    """Function to run the bot polling in a separate thread"""
+    while True:
+        try:
+            logger.info("Starting bot polling...")
+            bot.polling(none_stop=True, timeout=60)
+        except Exception as e:
+            logger.error(f"Bot polling error: {e}")
+            time.sleep(10)  # Wait before retrying
 
 def init_bot():
+    """Initialize the Telegram bot"""
     global bot_instance
     if bot_instance is None:
         try:
-            logger.info("Initializing bot...")
-            bot_instance = AttendanceBot(os.getenv("BOT_TOKEN"), TEACHER_USERNAME)
-            bot_instance.run()
-            logger.info("Bot started successfully")
-            bot_instance.check_attendance()
-            # Schedule attendance checks
+            bot_thread = Thread(target=run_bot)
+            bot_thread.daemon = True
+            bot_thread.start()
+            bot_instance = bot_thread
+            logger.info("Bot thread started")
+            
+            # Schedule the attendance check
             scheduler.add_job(
-                bot_instance.check_attendance(),
-                trigger=CronTrigger(day_of_week="mon", hour=10, minute=15),
-                id="attendance_check",
-                replace_existing=True,
+                check_student_attendance,
+                'cron',
+                hour=10,
+                minute=15,
+                id='attendance_check',
+                replace_existing=True
             )
-
         except Exception as e:
             logger.error(f"Failed to initialize bot: {e}")
 
-
-# Initialize bot after first request
 @app.before_request
 def before_request():
+    """Initialize bot before first request if not already initialized"""
     global bot_instance
     if bot_instance is None:
         init_bot()
 
+# Add cleanup handler
+atexit.register(lambda: bot.stop_polling() if bot_instance else None)
 
-# Cleanup function
-def cleanup():
-    if bot_instance:
-        bot_instance.stop()
-    if scheduler.running:
-        scheduler.shutdown()
+# Modify your check_attendance function in the AttendanceBot class
+# def check_student_attendance():
+#     """Check attendance for students at 10:15 AM"""
+#     current_time = datetime.now().time()
+#     target_time = time(10, 15)  # 10:15 AM
+    
+#     if current_time.hour == target_time.hour and current_time.minute == target_time.minute:
+#         try:
+#             conn = get_db_connection()
+#             cursor = conn.cursor()
+            
+#             # Get students who haven't marked attendance for today's first class
+#             today = datetime.now().date()
+#             cursor.execute("""
+#                 SELECT DISTINCT s.TelegramUsername, uc.chat_id
+#                 FROM student s
+#                 JOIN studentsubjects ss ON s.StudentID = ss.StudentID
+#                 JOIN classes c ON ss.SubjectID = c.SubjectID
+#                 LEFT JOIN attendance a ON s.StudentID = a.StudentID AND c.ClassID = a.ClassID
+#                 LEFT JOIN user_channels uc ON s.TelegramUsername = uc.username
+#                 WHERE DATE(c.ClassDate) = %s
+#                 AND (a.AttendanceStatus IS NULL OR a.AttendanceStatus = 'Absent')
+#                 AND s.TelegramUsername IS NOT NULL
+#                 AND uc.chat_id IS NOT NULL
+#                 ORDER BY c.ClassDate ASC
+#             """, (today,))
+            
+#             absent_students = cursor.fetchall()
+            
+#             for student in absent_students:
+#                 username, chat_id = student
+#                 try:
+#                     message = bot.send_message(
+#                         chat_id,
+#                         "Are you coming to class today? Please reply 'yes' or 'no'."
+#                     )
+#                     bot.register_next_step_handler(message, handle_attendance_response)
+#                 except Exception as e:
+#                     logger.error(f"Failed to send message to {username}: {e}")
+            
+#         except Exception as e:
+#             logger.error(f"Error in attendance check: {e}")
+#         finally:
+#             cursor.close()
+#             conn.close()
 
+def check_student_attendance():
+    """Check attendance for students (test version without time check)"""
+    try:
+        logger.info("Running attendance check...")
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get students who haven't marked attendance for today's first class
+        today = datetime.now().date()
+        cursor.execute("""
+            SELECT DISTINCT s.TelegramUsername, uc.chat_id
+            FROM student s
+            JOIN studentsubjects ss ON s.StudentID = ss.StudentID
+            JOIN classes c ON ss.SubjectID = c.SubjectID
+            LEFT JOIN attendance a ON s.StudentID = a.StudentID AND c.ClassID = a.ClassID
+            LEFT JOIN user_channels uc ON s.TelegramUsername = uc.username
+            WHERE DATE(c.ClassDate) = %s
+            AND (a.AttendanceStatus IS NULL OR a.AttendanceStatus = 'Absent')
+            AND s.TelegramUsername IS NOT NULL
+            AND uc.chat_id IS NOT NULL
+            ORDER BY c.ClassDate ASC
+        """, (today,))
+        
+        absent_students = cursor.fetchall()
+        logger.info(f"Found {len(absent_students)} students to check")
+        
+        for student in absent_students:
+            username, chat_id = student
+            logger.info(f"Sending message to {username}")
+            try:
+                # Send message directly using the bot instance
+                message = bot.send_message(
+                    chat_id,
+                    "Are you coming to class today? Please reply with your reason if you will be absent or late."
+                )
+                # Register the next step handler for the response
+                bot.register_next_step_handler(message, handle_attendance_response)
+                logger.info(f"Message sent successfully to {username}")
+            except Exception as e:
+                logger.error(f"Failed to send message to {username}: {e}")
+            
+    except Exception as e:
+        logger.error(f"Error in attendance check: {e}")
+    finally:
+        cursor.close()
+        conn.close()
 
-atexit.register(cleanup)
+# Add a test endpoint to trigger the check manually
+@app.route('/test_attendance_check')
+def test_attendance_check():
+    try:
+        check_student_attendance()
+        return jsonify({"status": "success", "message": "Attendance check triggered"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
+# Add the scheduler job
+scheduler.add_job(
+    check_student_attendance,
+    'cron',
+    hour=10,
+    minute=15,
+    id='attendance_check'
+)
 
-# Add a status endpoint
-@app.route("/status")
-def check_status():
-    return jsonify(
-        {
-            "bot_running": bool(
-                bot_instance and bot_instance.thread and bot_instance.thread.is_alive()
-            ),
-            "scheduler_running": scheduler.running,
-            "next_check": (
-                str(scheduler.get_job("attendance_check").next_run_time)
-                if scheduler.get_job("attendance_check")
-                else None
-            ),
-        }
-    )
-"""
 
 # Database connection details using environment variables
 db_config = {
