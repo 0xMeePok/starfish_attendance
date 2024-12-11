@@ -14,43 +14,7 @@
 </style>
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-light bg-light">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="{{ url_for('homepage') }}"><img class="logo" src="{{ url_for('static', filename='starfish_logo.jpg') }}" alt="Starfish Logo" /></a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown" aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNavDropdown">
-            <ul class="navbar-nav">
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('create_subject_class') }}">Add Class</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('enroll_student') }}">Enroll Student</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('enroll_classes') }}">Enroll Classes</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('overall_attendance') }}">Overall Attendance</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('create_marks') }}">Add Results</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('export_marks') }}">Export Marks</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('generate_report') }}">Generate Report</a>
-                </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('logout')}}">Logout</a>
-                    </li>
-            </ul>
-        </div>
-    </div>
-</nav>
-    </nav>
+    {% include 'navbar.html' %}
 
     <div class="container mt-5">
         <h2 class="text-center mb-4">Export Attendance for Subject</h2>
