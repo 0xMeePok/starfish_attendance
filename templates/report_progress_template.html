@@ -86,6 +86,9 @@
         .full-date {
             text-align: right;
         }
+        tr:first-child {
+            background-color: #f8f9fa;  /* Light gray color, same as Bootstrap's bg-light */
+        }
     </style>
     <!-- Add this line in the <head> section to include html2pdf.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -109,7 +112,7 @@
         <div class="content">
             <p>The GCE NT Level examinations follows the grading below:</p>
             <table style="width: 40%; font-size:15px;">
-                <tr>
+                <tr class="bg-light">
                     <th></th>
                     <th>100 - 75</th>
                     <th>74 - 70</th>
@@ -137,7 +140,7 @@
 
             <p>The following are your Term {{ data.term.number }} test results:</p>
             <table style="width: 65%; font-size:15px;">
-                <tr>
+                <tr class="bg-light">
                     <th>No.</th>
                     <th>Subject</th>
                     <th>Marks</th>
@@ -147,31 +150,31 @@
                 <tr>
                     <td>1</td>
                     <td>English</td>
-                    <td>{{ data.marks['English'][0] }} / 100</td>
-                    <td>{{ data.marks['English'][0] }}%</td>
-                    <td>{{ data.marks['English'][1] }}</td>
+                    <td>{{ data.marks['English'][0] }} / {{ data.marks['English'][1] }}</td>
+                    <td>{{ (data.marks['English'][0]/data.marks['English'][1] * 100) | round(2) }}%</td>
+                    <td>{{ data.marks['English'][2] }}</td>
                 </tr>
                 <tr>
                     <td>2</td>
                     <td>Mathematics</td>
-                    <td>{{ data.marks['Math'][0] }} / 100</td>
-                    <td>{{ data.marks['Math'][0] }}%</td>
-                    <td>{{ data.marks['Math'][1] }}</td>
+                    <td>{{ data.marks['Math'][0] }} / {{ data.marks['Math'][1] }}</td>
+                    <td>{{ (data.marks['Math'][0]/data.marks['Math'][1] * 100) | round(2) }}%</td>
+                    <td>{{ data.marks['Math'][2] }}</td>
                 </tr>
                 <tr>
                     <td>3</td>
                     <td>Science</td>
-                    <td>{{ data.marks['Science'][0] }} / 100</td>
-                    <td>{{ data.marks['Science'][0] }}%</td>
-                    <td>{{ data.marks['Science'][1] }}</td>
+                    <td>{{ data.marks['Science'][0] }} / {{ data.marks['Science'][1] }}</td>
+                    <td>{{ (data.marks['Science'][0]/data.marks['Science'][1] * 100) | round(2) }}%</td>
+                    <td>{{ data.marks['Science'][2] }}</td>
                 </tr>
                 {% if 'Mother Tongue' in data.marks %}
                 <tr>
                     <td>4</td>
                     <td>Mother Tongue</td>
-                    <td>{{ data.marks['Mother Tongue'][0] }} / 100</td>
-                    <td>{{ data.marks['Mother Tongue'][0] }}%</td>
-                    <td>{{ data.marks['Mother Tongue'][1] }}</td>
+                    <td>{{ data.marks['Mother Tongue'][0] }} / {{ data.marks['Mother Tongue'][1] }}</td>
+                    <td>{{ (data.marks['Mother Tongue'][0]/data.marks['Mother Tongue'][1] * 100) | round(2) }}%</td>
+                    <td>{{ data.marks['Mother Tongue'][2] }}</td>
                 </tr>
                 {% endif %}
                 <tr>
@@ -186,10 +189,10 @@
         <h3>2. BEHAVIOURAL REPORT</h3>
         <div class="content">
             <p>The following areas reflect your attendance and conduct for Term {{ data.term.number }}.</p>
-            <table style="width: 75%; font-size:15px;">
-                <tr>
+            <table style="width: 50%; font-size:15px;">
+                <tr class="bg-light">
                     <th>No.</th>
-                    <th>Conduct</th>
+                    <th></th>
                     <th>Attendance</th>
                 </tr>
                 <tr>

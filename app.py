@@ -1060,30 +1060,25 @@ def create_marks():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    # Fetch all students for the dropdown
-    cursor.execute("SELECT StudentID, StudentName FROM student")
-    students = cursor.fetchall()
-
-    # Fetch all subjects for the dropdown
-    cursor.execute("SELECT SubjectID, SubjectName FROM subject")
-    subjects = cursor.fetchall()
-
     if request.method == "POST":
         subject = request.form["subject"]
         test_type = request.form["test_type"]
+        term_no = request.form["term"]
         student_id = request.form["student_id"]
         marks_obtained = float(request.form["marks_obtained"])
         total_marks = float(request.form["total_marks"])
         weightage = float(request.form["weightage"])
+        # Get the checkbox value - will be 'on' if checked, None if unchecked
+        is_term_test = 1 if request.form.get("is_term_test") else 0
 
         # Insert the marks into the database
         insert_query = """
-        INSERT INTO marks (StudentID, SubjectID, TestType, MarksObtained, TotalMarks, Weightage)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        INSERT INTO marks (StudentID, SubjectID, TestType, MarksObtained, TotalMarks, Weightage, Term, IsTermTest)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
         cursor.execute(
             insert_query,
-            (student_id, subject, test_type, marks_obtained, total_marks, weightage),
+            (student_id, subject, test_type, marks_obtained, total_marks, weightage, term_no, is_term_test),
         )
         conn.commit()
 
@@ -1091,6 +1086,14 @@ def create_marks():
         conn.close()
 
         return redirect(url_for("create_marks"))
+
+    # Fetch all students for the dropdown
+    cursor.execute("SELECT StudentID, StudentName FROM student")
+    students = cursor.fetchall()
+
+    # Fetch all subjects for the dropdown
+    cursor.execute("SELECT SubjectID, SubjectName FROM subject")
+    subjects = cursor.fetchall()
 
     cursor.close()
     conn.close()
@@ -1464,37 +1467,37 @@ def generate_report():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT ClassDate FROM classes")
-    classDates = cursor.fetchall()
-    years = [row[0].year for row in classDates]
-    max_year = min(years)
-    min_year = min(years)
-    years = []
-
-    list_of_years = range(min_year, max_year + 1)
-
-    for n in list_of_years:
-        years.append(n)
-
     # Fetch all students for the dropdown
     cursor.execute("SELECT StudentID, StudentName FROM student")
     students = cursor.fetchall()
 
+    # Get years from classes
+    cursor.execute("SELECT ClassDate FROM classes")
+    classDates = cursor.fetchall()
+    years = [row[0].year for row in classDates]
+    max_year = max(years)
+    min_year = min(years)
+    years = list(range(min_year, max_year + 1))
+
     if request.method == "POST":
-        # run pdf generating report function
         selected_report = request.form.get("selected_report")
         selected_year = request.form.get("selected_year")
         selected_student_id = request.form.get("selected_student")
+        selected_term = request.form.get("selected_term")
 
-        # querying all the data to popualate the fields
-        name, marks_data, attendanceByStatus, year = retrieveDetails(
-            selected_student_id, selected_year, selected_report
-        )
 
-        # Get selected term if it's a progress report
-        selected_term = request.form.get('selected_term')
-        if selected_report == "1" and selected_term:  # Progress report
-            # Fetch term dates from the terms table
+        if selected_report == "1":  # Progress Report
+
+            # Get student data
+            name, marks_data, attendanceByStatus, year = retrieveProgressDetails(selected_student_id, selected_year, selected_term)
+
+            data = {
+                "name": name,
+                "marks": marks_data,
+                "attendanceByStatus": attendanceByStatus,
+                "year": year
+            }
+            # Fetch term dates
             cursor.execute("""
                 SELECT start_date, end_date 
                 FROM term 
@@ -1503,29 +1506,140 @@ def generate_report():
             term_dates = cursor.fetchone()
             
             if term_dates:
-                term_info = {
-                    'number': selected_term,
-                    'start_date': term_dates[0].strftime('%d/%m/%y'),
-                    'end_date': term_dates[1].strftime('%d/%m/%y')
+                data["term"] = {
+                    "number": selected_term,
+                    "start_date": term_dates[0].strftime('%d/%m/%y'),
+                    "end_date": term_dates[1].strftime('%d/%m/%y')
                 }
-            else:
-                term_info = None
-                
+
+            return render_template("report_progress_template.html", data=data, now=datetime.now())
+        else:  # Overall Report
+                    # Get student data
+            name, marks_data, attendanceByStatus, year = retrieveDetails(
+                selected_student_id, selected_year
+            )
+
             data = {
                 "name": name,
                 "marks": marks_data,
                 "attendanceByStatus": attendanceByStatus,
-                "year": year,
-                "term": term_info
+                "year": year
             }
-            
-            return render_template("report_progress_template.html", data=data, now=datetime.now())
+            return render_template("report_overall_template.html", data=data, now=datetime.now())
 
-    else:
-        return render_template("generate_report.html", students=students, years=years)
+    cursor.close()
+    conn.close()
+    return render_template("generate_report.html", students=students, years=years)
+
+def retrieveProgressDetails(student_id, year, term):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(
+            """
+            SELECT StudentName
+            FROM student
+            WHERE StudentID = %s;
+        """,
+            (student_id,),
+        )
+
+        name = cursor.fetchall()
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+    # Execute the SQL query, to extract only thoses Term Test defined
+    try:
+        cursor.execute(
+            """
+            SELECT DISTINCT StudentID, SubjectName, MarksObtained, TotalMarks, Weightage
+            FROM (
+                SELECT m.StudentID, SubjectName, m.MarksObtained, m.TotalMarks, m.Weightage, c.classDate
+                FROM attendance a
+                JOIN classes c ON a.classID = c.classID
+                JOIN marks m ON c.subjectID = m.SubjectID AND m.Term = %s AND m.IsTermTest = 1
+                JOIN subject s on s.SubjectID = m.subjectID
+            ) AS StudentMarks
+            WHERE StudentID = %s
+            AND YEAR(classDate) = %s
+        """,
+            (term, student_id, year)
+        )
+        # Fetch all results
+        results = cursor.fetchall()
+        
+        marks_data = {}
+
+        for row in results:
+            student_id, subject, marks_obtained, total_marks, weightage = row
+
+            if subject not in marks_data:
+                if marks_obtained == 0:
+                    marks_data[subject] = 0
+                else:
+                    marks_data[subject] = [marks_obtained, total_marks, get_grade(marks_obtained / total_marks * 100)]
+
+        # Calculate average grade
+        if marks_data and any(isinstance(mark, list) for mark in marks_data.values()):
+            total_percentage = sum(round(mark[0]/mark[1]*100, 2) for mark in marks_data.values() if isinstance(mark, list))
+            num_subjects = sum(1 for mark in marks_data.values() if isinstance(mark, list))
+            average_percentage = round(total_percentage / num_subjects, 2) if num_subjects > 0 else 0
+            marks_data['total'] = [average_percentage, get_grade(average_percentage)]
+        else:
+            marks_data['total'] = [0, get_grade(0)]
 
 
-def retrieveDetails(student_id, year, selected_report):
+         # Get term dates
+        cursor.execute("""
+            SELECT start_date, end_date 
+            FROM term 
+            WHERE id = %s
+        """, (term,))
+        term_dates = cursor.fetchone()
+        
+        if term_dates:
+            start_date, end_date = term_dates
+        else:
+            start_date = end_date = None
+
+        print(start_date, end_date)
+        cursor.execute(
+            """
+            SELECT a.AttendanceStatus, COUNT(*) AS numOfAttendance 
+            FROM attendance a
+            JOIN classes c ON a.ClassID = c.ClassID 
+            WHERE a.StudentID = %s AND YEAR(c.ClassDate) = %s AND classDate BETWEEN %s AND %s
+            GROUP BY a.AttendanceStatus
+        """,
+            (student_id, year, start_date, end_date),
+        )
+
+        attendanceByStatus = cursor.fetchall()
+        attendanceByStatus = dict(attendanceByStatus)
+
+        totalSum = sum(attendanceByStatus.values())
+
+        if "Absent with VR" not in attendanceByStatus:
+            attendanceByStatus["Absent with VR"] = 0
+
+        if "Late" not in attendanceByStatus:
+            attendanceByStatus["Late"] = 0
+
+        if "Present" not in attendanceByStatus:
+            attendanceByStatus["Present"] = 0
+
+        attendanceByStatus["total"] = totalSum
+
+        cursor.close()
+        conn.close()
+        return name, marks_data, attendanceByStatus, year
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+def retrieveDetails(student_id, year):
     conn = get_db_connection()
     cursor = conn.cursor()
 

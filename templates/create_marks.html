@@ -35,8 +35,23 @@
             </div>
             
             <div class="mb-3">
-                <label for="test_type" class="form-label">Test Type</label>
+                <label for="test_type" class="form-label">Test Name</label>
                 <input type="text" class="form-control" id="test_type" name="test_type" required>
+            </div>
+            <div class="mb-3">
+                <label for="term" class="form-label">Term</label>
+                <select class="form-select" id="term" name="term" required>
+                    <option value="">Select a term</option>
+                    <option value="1">Term 1</option>
+                    <option value="2">Term 2</option>
+                    <option value="3">Term 3</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <div class="form-check">
+                    <label class="form-check-label" for="is_term_test">Is this a Term Test? Progress Report for this Term will be generated based on this assessment.</label>
+                    <input class="form-check-input" type="checkbox" id="is_term_test" name="is_term_test">
+                </div>
             </div>
             <div class="mb-3">
                 <label for="student_id" class="form-label">Student</label>
@@ -57,7 +72,7 @@
                 <input type="number" class="form-control" id="total_marks" name="total_marks" step="0.01" required>
             </div>
             <div class="mb-3">
-                <label for="weightage" class="form-label">Weightage (%)</label>
+                <label for="weightage" class="form-label">Weightage of Assessment (%)</label>
                 <input type="number" class="form-control" id="weightage" name="weightage" step="0.01" required>
             </div>
             <button type="submit" class="btn btn-primary">Submit</button>
