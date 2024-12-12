@@ -1491,17 +1491,35 @@ def generate_report():
             selected_student_id, selected_year, selected_report
         )
 
-        data = {
-            "name": name,
-            "marks": marks_data,
-            "attendanceByStatus": attendanceByStatus,
-            "year": year,
-        }
-
-        if selected_report == "0":
-            return render_template("report_overall_template.html", data=data)
-        else:
-            return render_template("report_progress_template.html", data=data)
+        # Get selected term if it's a progress report
+        selected_term = request.form.get('selected_term')
+        if selected_report == "1" and selected_term:  # Progress report
+            # Fetch term dates from the terms table
+            cursor.execute("""
+                SELECT start_date, end_date 
+                FROM term 
+                WHERE id = %s
+            """, (selected_term,))
+            term_dates = cursor.fetchone()
+            
+            if term_dates:
+                term_info = {
+                    'number': selected_term,
+                    'start_date': term_dates[0].strftime('%d/%m/%y'),
+                    'end_date': term_dates[1].strftime('%d/%m/%y')
+                }
+            else:
+                term_info = None
+                
+            data = {
+                "name": name,
+                "marks": marks_data,
+                "attendanceByStatus": attendanceByStatus,
+                "year": year,
+                "term": term_info
+            }
+            
+            return render_template("report_progress_template.html", data=data, now=datetime.now())
 
     else:
         return render_template("generate_report.html", students=students, years=years)
@@ -1568,6 +1586,14 @@ def retrieveDetails(student_id, year, selected_report):
 
     for n in marks_data:
         marks_data[n] = [marks_data[n], get_grade(marks_data[n])]
+
+    # Calculate average grade
+    if marks_data:
+        total_marks = sum(mark[0] for mark in marks_data.values())
+        average_mark = total_marks / len(marks_data)
+        marks_data['total'] = [average_mark, get_grade(average_mark)]
+    else:
+        marks_data['total'] = [0, get_grade(0)]
 
     cursor.execute(
         """
@@ -1988,6 +2014,61 @@ def get_students_by_year():
     finally:
         cursor.close()
         conn.close()
+
+@app.route("/set_term", methods=["GET", "POST"])
+def set_term():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    if request.method == "POST":
+        try:
+            # Validate dates before updating
+            for term_id in range(1, 4):
+                start_date = datetime.strptime(request.form[f'start_date_{term_id}'], '%Y-%m-%d')
+                end_date = datetime.strptime(request.form[f'end_date_{term_id}'], '%Y-%m-%d')
+                
+                # Check if start date is after end date
+                if start_date > end_date:
+                    flash(f"Term {term_id}: Start date cannot be after end date", "error")
+                    return redirect(url_for('set_term'))
+
+            # If all dates are valid, proceed with update
+            for term_id in range(1, 4):
+                start_date = request.form[f'start_date_{term_id}']
+                end_date = request.form[f'end_date_{term_id}']
+                
+                cursor.execute("""
+                    INSERT INTO term (id, start_date, end_date)
+                    VALUES (%s, %s, %s)
+                    ON DUPLICATE KEY UPDATE 
+                        start_date = VALUES(start_date),
+                        end_date = VALUES(end_date)
+                """, (term_id, start_date, end_date))
+            
+            conn.commit()
+            flash("Terms updated successfully!", "success")
+            
+        except Exception as e:
+            conn.rollback()
+            flash(f"Error updating terms: {str(e)}", "error")
+            
+        return redirect(url_for('set_term'))
+    
+    # Fetch existing terms
+    cursor.execute("SELECT * FROM term ORDER BY id")
+    terms = cursor.fetchall()
+    
+    # If no terms exist, create empty ones
+    if not terms:
+        terms = [
+            {'id': i, 'start_date': '', 'end_date': ''} 
+            for i in range(1, 4)
+        ]
+    
+    cursor.close()
+    conn.close()
+    
+    return render_template('term.html', terms=terms)
 
 
 # session check for each route

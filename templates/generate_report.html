@@ -45,6 +45,20 @@
                 studentSelect.innerHTML = '<option value="">-- Select a Student --</option>';
             }
         }
+
+        function toggleTermDropdown() {
+            const reportSelect = document.getElementById('selected_report');
+            const termDiv = document.getElementById('term_selection');
+            const termSelect = document.getElementById('selected_term');
+            
+            if (reportSelect.value === '1') { // Progress Report
+                termDiv.style.display = 'block';
+                termSelect.required = true;
+            } else {
+                termDiv.style.display = 'none';
+                termSelect.required = false;
+            }
+        }
     </script>
 </head>
 <body>
@@ -56,14 +70,25 @@
         <div class="row mb-3">
             <div class="col-md-6 offset-md-3">
                 <form method="POST">
+                    <p>Ensure you have set Term Start and End Dates <span><a href="{{ url_for('set_term') }}">here</a></span> first before generating report!</p>
                     <!-- Student selection dropdown -->
                     <div class="form-group">
                         <label for="selected_type">Choose Report Type</label>:</label>
-                        <select class="form-control" id="selected_report" name="selected_report" required>
+                        <select class="form-control" id="selected_report" name="selected_report" required onchange="toggleTermDropdown()">
                             <option value="">-- Select Report Type --</option>
                                 <option value=0>Overall</option>
                                 <option value=1>Progress</option>
                         </select>
+
+                        <div id="term_selection" style="display: none;">
+                            <label for="selected_term">Choose Term</label>:</label>
+                            <select class="form-control" id="selected_term" name="selected_term">
+                                <option value="">-- Select Term --</option>
+                                <option value="1">Term 1</option>
+                                <option value="2">Term 2</option>
+                                <option value="3">Term 3</option>
+                            </select>
+                        </div>
 
                         <label for="selected_year">Choose Intake</label>:</label>
                         <select class="form-control" id="selected_year" name="selected_year" required onchange="toggleStudentDropdown()">
@@ -80,7 +105,7 @@
                                 <option value="{{ student[0] }}">{{ student[1] }}</option>
                             {% endfor %}
                         </select>
-                        <button type="submit" class="btn btn-primary">Generate Term Report</button>
+                        <button type="submit" class="btn btn-primary">Generate Report</button>
                     </div>
                 </form>
 
