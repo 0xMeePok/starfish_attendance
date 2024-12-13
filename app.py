@@ -180,7 +180,6 @@ def update_attendance_records(username, status, reason):
             JOIN student s ON ss.StudentID = s.StudentID
             WHERE DATE(c.ClassDate) = %s 
             AND s.TelegramUsername = %s
-            ORDER BY c.ClassDate ASC
         """, (today, username))
         
         class_info = cursor.fetchall()
@@ -273,7 +272,6 @@ atexit.register(lambda: bot.stop_polling() if bot_instance else None)
 #                 AND (a.AttendanceStatus IS NULL OR a.AttendanceStatus = 'Absent')
 #                 AND s.TelegramUsername IS NOT NULL
 #                 AND uc.chat_id IS NOT NULL
-#                 ORDER BY c.ClassDate ASC
 #             """, (today,))
             
 #             absent_students = cursor.fetchall()
@@ -315,7 +313,6 @@ def check_student_attendance():
             AND (a.AttendanceStatus IS NULL OR a.AttendanceStatus = 'Absent')
             AND s.TelegramUsername IS NOT NULL
             AND uc.chat_id IS NOT NULL
-            ORDER BY c.ClassDate ASC
         """, (today,))
         
         absent_students = cursor.fetchall()
@@ -325,12 +322,10 @@ def check_student_attendance():
             username, chat_id = student
             logger.info(f"Sending message to {username}")
             try:
-                # Send message directly using the bot instance
                 message = bot.send_message(
                     chat_id,
                     "Are you coming to class today? Please reply with your reason if you will be absent or late."
                 )
-                # Register the next step handler for the response
                 bot.register_next_step_handler(message, handle_attendance_response)
                 logger.info(f"Message sent successfully to {username}")
             except Exception as e:
