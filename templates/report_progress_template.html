@@ -261,7 +261,13 @@
                     compress: false,
                     putOnlyUsedFonts: true,
                     precision: 16
-                }
+                },
+                    pagebreak: { 
+                        mode: ['avoid-all', 'css', 'legacy'],
+                        before: '.page-break',
+                        after: '.page-break',
+                        avoid: ['tr', 'td'] // Prevent table rows from being split
+                    }
             };
 
             const element = document.body;

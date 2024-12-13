@@ -260,14 +260,14 @@
                 
                 // Configure PDF options
                 const options = {
-                    margin: [10, 10, 20, 10], // [top, right, bottom, left] - increased bottom margin
+                    margin: [10, 10, 20, 10], // [top, right, bottom, left]
                     filename: '{{ data.name[0][0]}}_Overall_Report_{{ data.year }}.pdf',
                     image: { type: 'png', quality: 1 },
                     html2canvas: { 
                         scale: 2,
                         useCORS: true,
                         letterRendering: true,
-                        windowHeight: document.documentElement.offsetHeight + 40, // Add extra height
+                        windowHeight: document.documentElement.offsetHeight + 40,
                         windowWidth: document.documentElement.offsetWidth,
                         logging: false,
                         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
@@ -281,6 +281,12 @@
                         compress: false,
                         putOnlyUsedFonts: true,
                         precision: 16
+                    },
+                    pagebreak: { 
+                        mode: ['avoid-all', 'css', 'legacy'],
+                        before: '.page-break',
+                        after: '.page-break',
+                        avoid: ['tr', 'td'] // Prevent table rows from being split
                     }
                 };
 
