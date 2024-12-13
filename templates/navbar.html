@@ -1,3 +1,11 @@
+<style>
+        .logo {
+            width: 50px;
+            height: 50px;
+            margin-bottom: 5px;
+        }
+</style>
+
 <nav class="navbar navbar-expand-lg navbar-light bg-light">
     <div class="container-fluid">
         <a class="navbar-brand" href="{{ url_for('homepage') }}"><img class="logo" src="{{ url_for('static', filename='starfish_logo.jpg') }}" alt="Starfish Logo" /></a>
@@ -13,6 +21,9 @@
                     <a class="nav-link" href="{{ url_for('enroll_student') }}">Enroll Student</a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('edit_student') }}">Edit Student</a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('enroll_classes') }}">Enroll Classes</a>
                 </li>
                 <li class="nav-item">
@@ -20,6 +31,9 @@
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('create_marks') }}">Add Results</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('edit_marks') }}">Edit Results</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('export_marks') }}">Export Marks</a>
