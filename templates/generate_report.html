@@ -67,6 +67,12 @@
     <div class="container mt-5">
         <h1 class="text-center mb-4">Generate Reports</h1>
         
+        {% if error_message %}
+            <div class="alert alert-warning">
+                {{ error_message }}
+            </div>
+        {% endif %}
+
         <div class="row mb-3">
             <div class="col-md-6 offset-md-3">
                 <form method="POST">

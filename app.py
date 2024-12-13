@@ -11,6 +11,7 @@ from flask import (
     render_template,
     session,
     get_flashed_messages,
+    send_file,
 )
 import mysql.connector
 import random
@@ -33,6 +34,7 @@ import logging
 from mysql.connector import Error as MySQLConnectorError
 import time
 import requests
+from zipfile import ZipFile
 
 TELEGRAM_DIR = os.path.join(os.path.dirname(__file__), "telegram")
 sys.path.append(TELEGRAM_DIR)
@@ -1470,8 +1472,16 @@ def generate_report():
     cursor.execute("SELECT ClassDate FROM classes")
     classDates = cursor.fetchall()
     years = [row[0].year for row in classDates]
-    max_year = max(years)
-    min_year = min(years)
+    try:
+        max_year = max(years)
+        min_year = min(years)
+    except:
+        # Handle case when there are no attendance records
+        return render_template("generate_report.html", 
+                             students=students, 
+                             years=[], 
+                             error_message="Database does NOT contain any class information or test scores, therefore unable to generate reports of students")
+
     years = list(range(min_year, max_year + 1))
 
     if request.method == "POST":
@@ -2178,6 +2188,110 @@ def set_term():
     
     return render_template('term.html', terms=terms)
 
+@app.route("/export_data", methods=["POST"])
+def export_data():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Create a timestamp for the export
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        export_dir = f'exports'
+        os.makedirs(export_dir, exist_ok=True)
+        
+        # List of tables to export
+        tables = [
+            'attendance',
+            'marks',
+            'studentsubjects',
+            'classes',
+            'student',
+            'user_channels',
+        ]
+        
+        # Export each table to CSV
+        for table in tables:
+            cursor.execute(f"SELECT * FROM {table}")
+            rows = cursor.fetchall()
+            
+            # Get column names
+            cursor.execute(f"SHOW COLUMNS FROM {table}")
+            columns = [column[0] for column in cursor.fetchall()]
+            
+            # Write to CSV
+            filepath = os.path.join(export_dir, f'{table}.csv')
+            with open(filepath, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(columns)  # Write headers
+                writer.writerows(rows)    # Write data
+        
+        # Create ZIP file
+        zip_filepath = f'{export_dir}.zip'
+        with ZipFile(zip_filepath, 'w') as zipf:
+            for table in tables:
+                csv_file = os.path.join(export_dir, f'{table}.csv')
+                zipf.write(csv_file, f'{table}.csv')
+                os.remove(csv_file)  # Remove individual CSV files
+        
+        os.rmdir(export_dir)  # Remove temporary directory
+        
+        # Send the ZIP file
+        return send_file(
+            zip_filepath,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=f'attendance_marks_data_{timestamp}.zip'
+        )
+        
+    except Exception as e:
+        flash(f"Error exporting data: {str(e)}", "error")
+        return redirect(url_for('delete_record'))
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route("/delete_record", methods=["GET", "POST"])
+def delete_record():
+    if request.method == "POST":
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # List of tables to truncate
+            # Note: term, users table is not included in deletion
+            tables = [
+                'attendance',
+                'marks',
+                'studentsubjects',
+                'classes',
+                'student',
+                'user_channels'
+            ]
+            
+            # Disable foreign key checks temporarily
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+            
+            # Truncate all tables
+            for table in tables:
+                cursor.execute(f"TRUNCATE TABLE {table}")
+            
+            # Re-enable foreign key checks
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+            
+            conn.commit()
+            flash("All records have been successfully deleted.", "success")
+            
+        except Exception as e:
+            conn.rollback()
+            flash(f"Error deleting records: {str(e)}", "error")
+        finally:
+            cursor.close()
+            conn.close()
+        
+        return redirect(url_for('delete_record'))
+        
+    return render_template('delete_record.html')
 
 # session check for each route
 @app.before_request
