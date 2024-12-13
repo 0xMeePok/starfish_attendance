@@ -1604,7 +1604,6 @@ def retrieveProgressDetails(student_id, year, term):
         else:
             start_date = end_date = None
 
-        print(start_date, end_date)
         cursor.execute(
             """
             SELECT a.AttendanceStatus, COUNT(*) AS numOfAttendance 

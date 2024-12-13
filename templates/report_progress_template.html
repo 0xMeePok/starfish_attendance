@@ -111,7 +111,7 @@
         <h3>1. ACADEMIC PERFORMANCE</h3>
         <div class="content">
             <p>The GCE NT Level examinations follows the grading below:</p>
-            <table style="width: 40%; font-size:15px;">
+            <table style="width: 50%; font-size:15px;">
                 <tr class="bg-light">
                     <th></th>
                     <th>100 - 75</th>
@@ -203,7 +203,13 @@
                 <tr>
                     <td>2</td>
                     <td>Attendance Rate</td>
-                    <td>{{ ((data.attendanceByStatus['Present'] + data.attendanceByStatus['Absent with VR']) / data.attendanceByStatus['total'] * 100) | round(2) }} %</td>
+                    <td>
+                        {% if data.attendanceByStatus['total'] > 0 %}
+                            {{ ((data.attendanceByStatus['Present'] + data.attendanceByStatus['Absent with VR']) / data.attendanceByStatus['total'] * 100) | round(2) }} %
+                        {% else %}
+                            0 %
+                        {% endif %}
+                    </td>
                 </tr>
                 <tr>
                     <td>3</td>
@@ -232,33 +238,45 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-
-            
-            const button = document.getElementById('generate-report-btn');
-            const prompt = document.getElementById('prompt');
-            const textarea = document.getElementById('remarks-input');
-
-            // Initially hide the button
-            button.style.display = 'none';
-
-            // Show the button when the textarea is filled
-            textarea.addEventListener('input', function() {
-                if (this.value.trim() !== '') {
-                    button.style.display = 'block'; // Show the button
-                    prompt.style.display = 'none';
-                } else {
-                    button.style.display = 'none'; // Hide the button
-                    prompt.style.display = 'block';
+            // Configure PDF options
+            const options = {
+                margin: [10, 10, 20, 10],
+                filename: '{{ data.name[0][0]}}_Term_{{ data.term.number }}_Report.pdf',
+                image: { type: 'png', quality: 1 },
+                html2canvas: { 
+                    scale: 2,
+                    useCORS: true,
+                    letterRendering: true,
+                    windowHeight: document.documentElement.offsetHeight + 40,
+                    windowWidth: document.documentElement.offsetWidth,
+                    logging: false,
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                    scrollY: 0,
+                    scrollX: 0
+                },
+                jsPDF: { 
+                    unit: 'mm', 
+                    format: 'a4', 
+                    orientation: 'portrait',
+                    compress: false,
+                    putOnlyUsedFonts: true,
+                    precision: 16
                 }
-            });
+            };
 
-            // Function to generate PDF
-            button.addEventListener('click', function() {
-                button.style.display = 'none';
-                window.print();
-                window.location.href = '/generate_report';
-                
-            });
+            const element = document.body;
+            
+            // Add padding to the bottom of the content
+            const pageContent = document.querySelector('.page-content');
+            if (pageContent) {
+                pageContent.style.paddingBottom = '40px';
+            }
+            
+            // Generate PDF automatically on load
+            html2pdf().set(options).from(element).save()
+                .then(() => {
+                    window.location.href = '/generate_report';
+                });
         });
     </script>
 </body>
