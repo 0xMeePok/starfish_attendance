@@ -214,7 +214,25 @@
                 <tr>
                     <td>3</td>
                     <td>General Conduct</td>
-                    <td></td>
+                    
+                    <td>
+                        {% if data.attendanceByStatus['total'] > 0 %}
+                            {% set attendance_rate = (data.attendanceByStatus['Present'] + data.attendanceByStatus['Absent with VR']) / data.attendanceByStatus['total'] * 100 %}
+                            {% if attendance_rate >= 95 %}
+                                Excellent
+                            {% elif attendance_rate >= 85 %}
+                                Very Good
+                            {% elif attendance_rate >= 70 %}
+                                Good
+                            {% elif attendance_rate >= 60 %}
+                                Fair
+                            {% else %}
+                                Poor
+                            {% endif %}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
                 </tr>
                 
             </table>

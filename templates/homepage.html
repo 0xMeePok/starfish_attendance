@@ -8,37 +8,95 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         #chartContainer {
-            width: 80%;
+            width: 100%;
             margin: 0 auto;
+        }
+        .instructions {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .instructions h3 {
+            color: #007bff;
+            margin-bottom: 20px;
+        }
+        .instructions ol {
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin-bottom: 10px;
+        }
+        .date-filters {
+            display: flex;
+            gap: 20px;
+            align-items: flex-end;
+        }
+        .date-filter-container {
+            flex: 1;
+        }
+        .filter-button-container {
+            margin-bottom: 15px;
         }
     </style>
 </head>
 <body>
     {% include 'navbar.html' %}
 
-    <div class="container mt-5">
+    <div class="container-fluid mt-5">
         <h1 class="text-center mb-4">Welcome to the Attendance System</h1>
         
-        <div class="row mb-3">
-            <div class="col-md-6 offset-md-3">
-                <label for="startDate" class="form-label">Start Date:</label>
-                <input type="date" id="startDate" class="form-control">
+        <div class="row">
+            <!-- Left side - Instructions -->
+            <div class="col-md-6">
+                <div class="instructions">
+                    <h3>How to Mark Attendance</h3>
+                    <ol>
+                        <li>Add Class Schedules or new subjects in <a href="{{ url_for('create_subject_class') }}">Add Class Page</a></li>
+                        <li>Add Student Details in <a href="{{ url_for('enroll_student') }}">Add Student Page</a></li>
+                        <li>Enroll Students into the Relevant classes in <a href="{{ url_for('enroll_classes') }}">Enroll Student Page</a></li>
+                        <li>*Students who are late will message the Telegram Bot to report the reason & why*</li>
+                        <li>View Attendance and Mark remaining students' attendance in <a href="{{ url_for('overall_attendance') }}">Overall Attendance Page</a></li>
+                    </ol>
+                    <ul>
+                        <li>Student details can be edited in the <a href="{{ url_for('edit_student') }}">Edit Student Page</a></li>
+                    </ul>
+                    <h3>How to Generate Reports</h3>
+                    <ol>
+                        <li>Set the Dates of the 3 Terms in the <a href="{{ url_for('set_term') }}">Set Term Page</a></li>
+                        <li>Add Results of each student for each assessment in the <a href="{{ url_for('create_marks') }}">Add Results Page</a></li>
+                        <li>Generate the respective reports in the <a href="{{ url_for('generate_report') }}">Generate Report Page</a></li>
+                    </ol>
+                    <ul>
+                        <li>Students' Marks can be edited in the <a href="{{ url_for('edit_marks') }}">Edit Results Page</a></li>
+                        <li>Students' Marks can be exported in the <a href="{{ url_for('export_marks') }}">Export Marks Page</a></li>
+                    </ul>
+                </div>
             </div>
-        </div>
-        <div class="row mb-3">
-            <div class="col-md-6 offset-md-3">
-                <label for="endDate" class="form-label">End Date:</label>
-                <input type="date" id="endDate" class="form-control">
-            </div>
-        </div>
-        <div class="row mb-3">
-            <div class="col-md-6 offset-md-3">
-                <button id="filterButton" class="btn btn-primary w-100">Apply Filter</button>
-            </div>
-        </div>
 
-        <div id="chartContainer">
-            <canvas id="attendanceChart"></canvas>
+            <!-- Right side - Chart and Filters -->
+            <div class="col-md-6">
+                <div id="chartContainer">
+                    <canvas id="attendanceChart"></canvas>
+                </div>
+                
+                <!-- Date filters -->
+                <div class="mt-4">
+                    <div class="date-filters">
+                        <div class="date-filter-container">
+                            <label for="startDate" class="form-label">Start Date:</label>
+                            <input type="date" id="startDate" class="form-control">
+                        </div>
+                        <div class="date-filter-container">
+                            <label for="endDate" class="form-label">End Date:</label>
+                            <input type="date" id="endDate" class="form-control">
+                        </div>
+                        <div class="filter-button-container">
+                            <button id="filterButton" class="btn btn-primary">Apply Filter</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

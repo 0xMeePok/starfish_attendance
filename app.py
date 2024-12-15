@@ -1802,7 +1802,6 @@ def retrieveDetails(student_id, year):
 
     cursor.close()
     conn.close()
-    print(name, marks_data, attendanceByStatus, year)
 
     return name, marks_data, attendanceByStatus, year
 
