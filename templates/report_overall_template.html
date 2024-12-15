@@ -29,7 +29,7 @@
             background-color: #f2f2f2;
         }
         .logo {
-            width: 200px;
+            height: 100px;
             margin-bottom: 1px;
         }
         #remarks-input {
@@ -115,7 +115,7 @@
                     <th></th>
                     <th>100 - 75</th>
                     <th>74 - 70</th>
-                    <th>73 - 60</th>
+                    <th>69 - 60</th>
                     <th>59 - 50</th>
                     <th>49 - 0</th>
                 </tr>
@@ -149,30 +149,30 @@
                 <tr>
                     <td>1</td>
                     <td>English</td>
-                    <td>{{ data.marks['English'][0] }} / 100</td>
-                    <td>{{ data.marks['English'][0] }}%</td>
+                    <td>{{ data.marks['English'][0] | round(2) }} / 100</td>
+                    <td>{{ data.marks['English'][0] | round(2) }}%</td>
                     <td>{{ data.marks['English'][1] }}</td>
                 </tr>
                 <tr>
                     <td>2</td>
                     <td>Mathematics</td>
-                    <td>{{ data.marks['Math'][0] }} / 100</td>
-                    <td>{{ data.marks['Math'][0] }}%</td>
+                    <td>{{ data.marks['Math'][0] | round(2) }} / 100</td>
+                    <td>{{ data.marks['Math'][0] | round(2) }}%</td>
                     <td>{{ data.marks['Math'][1] }}</td>
                 </tr>
                 <tr>
                     <td>3</td>
                     <td>Science</td>
-                    <td>{{ data.marks['Science'][0] }} / 100</td>
-                    <td>{{ data.marks['Science'][0] }}%</td>
+                    <td>{{ data.marks['Science'][0] | round(2) }} / 100</td>
+                    <td>{{ data.marks['Science'][0] | round(2) }}%</td>
                     <td>{{ data.marks['Science'][1] }}</td>
                 </tr>
                 {% if 'Mother Tongue' in data.marks %}
                 <tr>
                     <td>4</td>
                     <td>Mother Tongue</td>
-                    <td>{{ data.marks['Mother Tongue'][0] }} / 100</td>
-                    <td>{{ data.marks['Mother Tongue'][0] }}%</td>
+                    <td>{{ data.marks['Mother Tongue'][0] | round(2) }} / 100</td>
+                    <td>{{ data.marks['Mother Tongue'][0] | round(2) }}%</td>
                     <td>{{ data.marks['Mother Tongue'][1] }}</td>
                 </tr>
                 {% endif %}
@@ -197,22 +197,28 @@
                 <tr>
                     <td>1</td>
                     <td>Present</td>
-                    <td>{{ data.attendanceByStatus['Present'] }} / {{ data.attendanceByStatus['total']  }}</td>
+                    <td>{{ data.attendanceByStatus['Present'] }} / {{ data.attendanceByStatus['total'] if data.attendanceByStatus['total'] else 0 }}</td>
                 </tr>
                 <tr>
                     <td>2</td>
                     <td>Absent with VR</td>
-                    <td>{{ data.attendanceByStatus['Absent with VR'] }} / {{ data.attendanceByStatus['total']  }}</td>
+                    <td>{{ data.attendanceByStatus['Absent with VR'] }} / {{ data.attendanceByStatus['total'] if data.attendanceByStatus['total'] else 0 }}</td>
                 </tr>
                 <tr>
                     <td>3</td>
                     <td>Attended Late</td>
-                    <td>{{ data.attendanceByStatus['Late'] }} / {{ data.attendanceByStatus['total']  }}</td>
+                    <td>{{ data.attendanceByStatus['Late'] }} / {{ data.attendanceByStatus['total'] if data.attendanceByStatus['total'] else 0 }}</td>
                 </tr>
                 <tr>
                     <td>4</td>
                     <td>Attendance Rate</td>
-                    <td>{{ ((data.attendanceByStatus['Present'] + data.attendanceByStatus['Absent with VR']) / data.attendanceByStatus['total'] * 100) | round(2) }} %</td>
+                    <td>
+                        {% if data.attendanceByStatus['total'] > 0 %}
+                            {{ ((data.attendanceByStatus['Present'] + data.attendanceByStatus['Absent with VR']) / data.attendanceByStatus['total'] * 100) | round(2) }}%
+                        {% else %}
+                            0%
+                        {% endif %}
+                    </td>
                 </tr>
                 
             </table>

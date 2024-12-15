@@ -26,7 +26,7 @@
             text-align: center;
         }
         .logo {
-            width: 200px;
+            height: 100px;
             margin-bottom: 1px;
         }
         #remarks-input {
@@ -103,7 +103,7 @@
             <span class="ref-number">Our Ref: {{ now.strftime('%m') }}-{{ data.year }}</span>
             <span class="full-date">{{ now.strftime('%d %B %Y') }}</span>
         </div>
-        <p>Dear {{ data.name[0][0]}},</p>
+        <p>Dear {{ data.name}},</p>
 
         <h3>Progress Report for Project Starfish, Term {{ data.term.number }}, iStarfish 
 (Period: {{ data.term.start_date }} to {{ data.term.end_date }}) </h3>
@@ -116,7 +116,7 @@
                     <th></th>
                     <th>100 - 75</th>
                     <th>74 - 70</th>
-                    <th>73 - 60</th>
+                    <th>69 - 60</th>
                     <th>59 - 50</th>
                     <th>49 - 0</th>
                 </tr>
@@ -151,21 +151,21 @@
                     <td>1</td>
                     <td>English</td>
                     <td>{{ data.marks['English'][0] }} / {{ data.marks['English'][1] }}</td>
-                    <td>{{ (data.marks['English'][0]/data.marks['English'][1] * 100) | round(2) }}%</td>
+                    <td>{{ (data.marks['English'][0]/data.marks['English'][1] * 100)|round(2)|string + '%' if data.marks['English'][1] != '-' else '-' }}</td>
                     <td>{{ data.marks['English'][2] }}</td>
                 </tr>
                 <tr>
                     <td>2</td>
                     <td>Mathematics</td>
                     <td>{{ data.marks['Math'][0] }} / {{ data.marks['Math'][1] }}</td>
-                    <td>{{ (data.marks['Math'][0]/data.marks['Math'][1] * 100) | round(2) }}%</td>
+                    <td>{{ (data.marks['Math'][0]/data.marks['Math'][1] * 100)|round(2)|string + '%' if data.marks['Math'][1] != '-' else '-' }}</td>
                     <td>{{ data.marks['Math'][2] }}</td>
                 </tr>
                 <tr>
                     <td>3</td>
                     <td>Science</td>
                     <td>{{ data.marks['Science'][0] }} / {{ data.marks['Science'][1] }}</td>
-                    <td>{{ (data.marks['Science'][0]/data.marks['Science'][1] * 100) | round(2) }}%</td>
+                    <td>{{ (data.marks['Science'][0]/data.marks['Science'][1] * 100)|round(2)|string + '%' if data.marks['Science'][1] != '-' else '-' }}</td>
                     <td>{{ data.marks['Science'][2] }}</td>
                 </tr>
                 {% if 'Mother Tongue' in data.marks %}
@@ -173,7 +173,7 @@
                     <td>4</td>
                     <td>Mother Tongue</td>
                     <td>{{ data.marks['Mother Tongue'][0] }} / {{ data.marks['Mother Tongue'][1] }}</td>
-                    <td>{{ (data.marks['Mother Tongue'][0]/data.marks['Mother Tongue'][1] * 100) | round(2) }}%</td>
+                    <td>{{ (data.marks['Mother Tongue'][0]/data.marks['Mother Tongue'][1] * 100)|round(2)|string + '%' if data.marks['Mother Tongue'][1] != '-' else '-' }}</td>
                     <td>{{ data.marks['Mother Tongue'][2] }}</td>
                 </tr>
                 {% endif %}
@@ -205,9 +205,9 @@
                     <td>Attendance Rate</td>
                     <td>
                         {% if data.attendanceByStatus['total'] > 0 %}
-                            {{ ((data.attendanceByStatus['Present'] + data.attendanceByStatus['Absent with VR']) / data.attendanceByStatus['total'] * 100) | round(2) }} %
+                            {{ ((data.attendanceByStatus['Present'] + data.attendanceByStatus['Absent with VR']) / data.attendanceByStatus['total'] * 100) | round(2) }}%
                         {% else %}
-                            0 %
+                            0%
                         {% endif %}
                     </td>
                 </tr>
@@ -241,7 +241,7 @@
             // Configure PDF options
             const options = {
                 margin: [10, 10, 20, 10],
-                filename: '{{ data.name[0][0]}}_Term_{{ data.term.number }}_Report.pdf',
+                filename: '{{ data.name}}_Term_{{ data.term.number }}_Report.pdf',
                 image: { type: 'png', quality: 1 },
                 html2canvas: { 
                     scale: 2,

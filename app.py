@@ -1062,11 +1062,16 @@ def create_marks():
         test_type = request.form["test_type"]
         term_no = request.form["term"]
         student_id = request.form["student_id"]
-        marks_obtained = float(request.form["marks_obtained"])
-        total_marks = float(request.form["total_marks"])
+        if request.form.get("attend_assessment"):
+            marks_obtained = float(request.form["marks_obtained"])
+            total_marks = float(request.form["total_marks"])
+        else:
+            marks_obtained = 0
+            total_marks = 0
         weightage = float(request.form["weightage"])
         # Get the checkbox value - will be 'on' if checked, None if unchecked
         is_term_test = 1 if request.form.get("is_term_test") else 0
+
 
         # Insert the marks into the database
         insert_query = """
@@ -1472,6 +1477,7 @@ def generate_report():
     cursor.execute("SELECT ClassDate FROM classes")
     classDates = cursor.fetchall()
     years = [row[0].year for row in classDates]
+
     try:
         max_year = max(years)
         min_year = min(years)
@@ -1480,7 +1486,7 @@ def generate_report():
         return render_template("generate_report.html", 
                              students=students, 
                              years=[], 
-                             error_message="Database does NOT contain any class information or test scores, therefore unable to generate reports of students")
+                             error_message="Database does NOT contain ANY class information or test scores, therefore unable to generate reports of students")
 
     years = list(range(min_year, max_year + 1))
 
@@ -1490,39 +1496,35 @@ def generate_report():
         selected_student_id = request.form.get("selected_student")
         selected_term = request.form.get("selected_term")
 
+        try:
+            if selected_report == "1":  # Progress Report
+                # Get student data
+                name, marks_data, attendanceByStatus, year = retrieveProgressDetails(selected_student_id, selected_year, selected_term)
+            else:  # Overall Report
+                # Get student data
+                name, marks_data, attendanceByStatus, year = retrieveDetails(selected_student_id, selected_year)
 
-        if selected_report == "1":  # Progress Report
+            # Check for missing core subjects
+            required_subjects = ['English', 'Math', 'Science']
+            missing_subjects = [subject for subject in required_subjects if subject not in marks_data]
 
-            # Get student data
-            name, marks_data, attendanceByStatus, year = retrieveProgressDetails(selected_student_id, selected_year, selected_term)
-
-            data = {
-                "name": name,
-                "marks": marks_data,
-                "attendanceByStatus": attendanceByStatus,
-                "year": year
-            }
-            # Fetch term dates
-            cursor.execute("""
-                SELECT start_date, end_date 
-                FROM term 
-                WHERE id = %s
-            """, (selected_term,))
-            term_dates = cursor.fetchone()
-            
-            if term_dates:
-                data["term"] = {
-                    "number": selected_term,
-                    "start_date": term_dates[0].strftime('%d/%m/%y'),
-                    "end_date": term_dates[1].strftime('%d/%m/%y')
-                }
-
-            return render_template("report_progress_template.html", data=data, now=datetime.now())
-        else:  # Overall Report
-                    # Get student data
-            name, marks_data, attendanceByStatus, year = retrieveDetails(
-                selected_student_id, selected_year
-            )
+            if missing_subjects:
+                if selected_report == "1":
+                    missing_subjects_str = ", ".join(missing_subjects)
+                    # Get student name
+                    cursor.execute("SELECT StudentName FROM student WHERE StudentID = %s", (selected_student_id,))
+                    student_name = cursor.fetchone()[0]  # This gets just the name string
+                    flash(f"Warning: No relevant data found for the following subjects: {missing_subjects_str}, Term {selected_term}, Year {selected_year}, Student {student_name}", "warning")
+                    flash(f"Ensure that you have added the Term Test Results for this student in that Term in Add Result Page", "warning")
+                    return redirect(url_for('generate_report'))
+                else:
+                    missing_subjects_str = ", ".join(missing_subjects)
+                    # Get student name
+                    cursor.execute("SELECT StudentName FROM student WHERE StudentID = %s", (selected_student_id,))
+                    student_name = cursor.fetchone()[0]  # This gets just the name string
+                    flash(f"Warning: No relevant data found for the following subjects: {missing_subjects_str}, Year {selected_year}, Student {student_name}", "warning")
+                    flash(f"Ensure that you have added at least 1 assessment for this student in Add Result Page", "warning")
+                    return redirect(url_for('generate_report'))
 
             data = {
                 "name": name,
@@ -1530,7 +1532,29 @@ def generate_report():
                 "attendanceByStatus": attendanceByStatus,
                 "year": year
             }
-            return render_template("report_overall_template.html", data=data, now=datetime.now())
+
+            if selected_report == "1":
+                # Fetch term dates for progress report
+                cursor.execute("""
+                    SELECT start_date, end_date 
+                    FROM term 
+                    WHERE id = %s
+                """, (selected_term,))
+                term_dates = cursor.fetchone()
+                
+                if term_dates:
+                    data["term"] = {
+                        "number": selected_term,
+                        "start_date": term_dates[0].strftime('%d/%m/%y'),
+                        "end_date": term_dates[1].strftime('%d/%m/%y')
+                    }
+                return render_template("report_progress_template.html", data=data, now=datetime.now())
+            else:
+                return render_template("report_overall_template.html", data=data, now=datetime.now())
+
+        except Exception as e:
+            flash(f"Error generating report: {str(e)}", "error")
+            return redirect(url_for('generate_report'))
 
     cursor.close()
     conn.close()
@@ -1541,19 +1565,22 @@ def retrieveProgressDetails(student_id, year, term):
     cursor = conn.cursor()
 
     try:
+        # Modify this query to fetch just the name string instead of a tuple
         cursor.execute(
             """
             SELECT StudentName
             FROM student
-            WHERE StudentID = %s;
-        """,
-            (student_id,),
+            WHERE StudentID = %s
+            """,
+            (student_id,)
         )
-
-        name = cursor.fetchall()
-
+        
+        # Fetch the single name value instead of all results
+        name = cursor.fetchone()[0]  # This gets just the name string
+        
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logger.error(f"Error fetching student name: {e}")
+        raise
 
     # Execute the SQL query, to extract only thoses Term Test defined
     try:
@@ -1581,16 +1608,40 @@ def retrieveProgressDetails(student_id, year, term):
             student_id, subject, marks_obtained, total_marks, weightage = row
 
             if subject not in marks_data:
-                if marks_obtained == 0:
-                    marks_data[subject] = 0
+                if marks_obtained == 0 and total_marks == 0:
+                    marks_data[subject] = ['-', '-', 'Absent']
                 else:
-                    marks_data[subject] = [marks_obtained, total_marks, get_grade(marks_obtained / total_marks * 100)]
+                    try:
+                        percentage = (marks_obtained / total_marks * 100) if total_marks > 0 else 0
+                        marks_data[subject] = [marks_obtained, total_marks, get_grade(percentage)]
+                    except:
+                        marks_data[subject] = [0, 0, 'N/A']
 
-        # Calculate average grade
+        # Calculate average grade safely
         if marks_data and any(isinstance(mark, list) for mark in marks_data.values()):
-            total_percentage = sum(round(mark[0]/mark[1]*100, 2) for mark in marks_data.values() if isinstance(mark, list))
-            num_subjects = sum(1 for mark in marks_data.values() if isinstance(mark, list))
-            average_percentage = round(total_percentage / num_subjects, 2) if num_subjects > 0 else 0
+            total_percentage = 0
+            num_subjects = 0
+            num_present_subjects = 0
+
+            for mark in marks_data.values():
+                if isinstance(mark, list):
+                    if mark[0] == 0 and mark[1] == 0:  # Absent case
+                        num_subjects += 1
+                    else:
+                        try:
+                            if mark[1] > 0:  # Check for non-zero denominator
+                                total_percentage += round(mark[0]/mark[1]*100, 2)
+                                num_subjects += 1
+                                num_present_subjects += 1
+                        except:
+                            continue
+
+            # Calculate average only if there are valid subjects
+            if num_present_subjects > 0:
+                average_percentage = round(total_percentage / num_subjects, 2)
+            else:
+                average_percentage = 0
+
             marks_data['total'] = [average_percentage, get_grade(average_percentage)]
         else:
             marks_data['total'] = [0, get_grade(0)]
@@ -1691,25 +1742,34 @@ def retrieveDetails(student_id, year):
     for row in results:
         student_id, subject, marks_obtained, total_marks, weightage = row
 
-        if subject not in marks_data:
-            if marks_obtained == 0:
+        try:
+            if subject not in marks_data:
+                if marks_obtained == 0 or total_marks == 0:
+                    marks_data[subject] = 0
+                else:
+                    marks_data[subject] = (marks_obtained / total_marks) * weightage
+            else:
+                if marks_obtained == 0 or total_marks == 0:
+                    marks_data[subject] += 0
+                else:
+                    marks_data[subject] += (marks_obtained / total_marks) * weightage
+        except:
+            if subject not in marks_data:
                 marks_data[subject] = 0
-            else:
-                marks_data[subject] = marks_obtained / total_marks * weightage
-        else:
-            if marks_obtained == 0:
-                marks_data[subject] += 0
-            else:
-                marks_data[subject] += marks_obtained / total_marks * weightage
 
+    # Convert marks to grades safely
     for n in marks_data:
         marks_data[n] = [marks_data[n], get_grade(marks_data[n])]
 
-    # Calculate average grade
+    # Calculate average grade safely
     if marks_data:
-        total_marks = sum(mark[0] for mark in marks_data.values())
-        average_mark = total_marks / len(marks_data)
-        marks_data['total'] = [average_mark, get_grade(average_mark)]
+        try:
+            total_marks = sum(mark[0] for mark in marks_data.values() if isinstance(mark, list))
+            num_subjects = len([mark for mark in marks_data.values() if isinstance(mark, list)])
+            average_mark = total_marks / num_subjects if num_subjects > 0 else 0
+            marks_data['total'] = [average_mark, get_grade(average_mark)]
+        except:
+            marks_data['total'] = [0, get_grade(0)]
     else:
         marks_data['total'] = [0, get_grade(0)]
 
@@ -1752,7 +1812,7 @@ def get_grade(score):
         return "A"
     elif 70 <= score <= 74:
         return "B"
-    elif 60 <= score <= 73:
+    elif 60 <= score <= 69:
         return "C"
     elif 50 <= score <= 59:
         return "D"
@@ -2096,6 +2156,8 @@ def flash_message():
     return redirect(url_for("edit_marks"))
 
 
+
+
 @app.route("/get_students_by_year", methods=["GET"])
 def get_students_by_year():
     selected_year = request.args.get("year")
@@ -2292,6 +2354,44 @@ def delete_record():
         return redirect(url_for('delete_record'))
         
     return render_template('delete_record.html')
+
+import os
+from werkzeug.utils import secure_filename
+
+UPLOAD_FOLDER = 'static'
+ALLOWED_EXTENSIONS = {'jpg'}
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/upload_logo', methods=['POST'])
+def upload_logo():
+    if 'logo_file' not in request.files:
+        flash('No file selected', 'warning')
+        return redirect(url_for('generate_report'))
+    
+    file = request.files['logo_file']
+    
+    if file.filename == '':
+        flash('No file selected', 'warning')
+        return redirect(url_for('generate_report'))
+    
+    if file and allowed_file(file.filename):
+        # Secure the filename and save it
+        filename = 'starfish_text.jpg'  # Keep the same filename
+        file_path = os.path.join(app.static_folder, filename)
+        
+        # If an old file exists, remove it
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            
+        file.save(file_path)
+        flash('Logo updated successfully', 'success')
+        return redirect(url_for('generate_report'))
+    
+    flash('Invalid file type. Please use .jpg', 'warning')
+    return redirect(url_for('generate_report'))
 
 # session check for each route
 @app.before_request
