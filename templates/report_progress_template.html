@@ -42,30 +42,30 @@
             top: 20px;
             right: 20px;
             padding: 20px 30px;
-            background-color: green; /* Bootstrap primary color */
+            background-color: green;
             color: white;
             border: none;
             border-radius: 10px;
             cursor: pointer;
-            z-index: 1000; /* Ensure it stays on top */
+            z-index: 1000;
             font-size: 20px;
-            display:none;
+            display: none;
         }
         #prompt {
             position: fixed;
             top: 1px;
             right: 20px;
             padding: 20px 30px;
-            background-color: burlywood; /* Bootstrap primary color */
+            background-color: burlywood;
             color: white;
             border: none;
             border-radius: 10px;
-            z-index: 1000; /* Ensure it stays on top */
+            z-index: 1000;
             font-size: 20px;
             display: block;
         }
         #generate-report-btn:hover {
-            background-color: lightgreen; /* Darker shade on hover */
+            background-color: lightgreen;
         }
         .content {
             display: block;
@@ -88,6 +88,14 @@
         }
         tr:first-child {
             background-color: #f8f9fa;  /* Light gray color, same as Bootstrap's bg-light */
+        }
+        #conduct-select {
+            width: 100%;
+            padding: 5px;
+            border: none;
+            text-align: center;
+            background-color: transparent;
+            outline: none;
         }
     </style>
     <!-- Add this line in the <head> section to include html2pdf.js -->
@@ -214,24 +222,13 @@
                 <tr>
                     <td>3</td>
                     <td>General Conduct</td>
-                    
                     <td>
-                        {% if data.attendanceByStatus['total'] > 0 %}
-                            {% set attendance_rate = (data.attendanceByStatus['Present'] + data.attendanceByStatus['Absent with VR']) / data.attendanceByStatus['total'] * 100 %}
-                            {% if attendance_rate >= 95 %}
-                                Excellent
-                            {% elif attendance_rate >= 85 %}
-                                Very Good
-                            {% elif attendance_rate >= 70 %}
-                                Good
-                            {% elif attendance_rate >= 60 %}
-                                Fair
-                            {% else %}
-                                Poor
-                            {% endif %}
-                        {% else %}
-                            -
-                        {% endif %}
+                        <select id="conduct-select" style="width: 100%; font-size: 15px;">
+                            <option value="">Select Conduct</option>
+                            <option value="Excellent">Excellent</option>
+                            <option value="Good">Good</option>
+                            <option value="Fair">Fair</option>
+                        </select>
                     </td>
                 </tr>
                 
@@ -249,58 +246,95 @@
             <img style="width: 120px;" src="{{ url_for('static', filename='siti.png') }}" alt="Siti Sig" />
             <p>Siti Yariyati<br>
             Course Manager</p>
-        <!-- Sticky Button
-        <p id="prompt">Enter Recommendations first before able to generate</p>
-        <input type="submit" id="generate-report-btn" value="Generate Report">    -->
+        <p id="prompt">Select General Conduct first before able to generate</p>
+        <input type="submit" id="generate-report-btn" value="Generate Report">
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Configure PDF options
-            const options = {
-                margin: [10, 10, 20, 10],
-                filename: '{{ data.name}}_Term_{{ data.term.number }}_Report.pdf',
-                image: { type: 'png', quality: 1 },
-                html2canvas: { 
-                    scale: 2,
-                    useCORS: true,
-                    letterRendering: true,
-                    windowHeight: document.documentElement.offsetHeight + 40,
-                    windowWidth: document.documentElement.offsetWidth,
-                    logging: false,
-                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                    scrollY: 0,
-                    scrollX: 0
-                },
-                jsPDF: { 
-                    unit: 'mm', 
-                    format: 'a4', 
-                    orientation: 'portrait',
-                    compress: false,
-                    putOnlyUsedFonts: true,
-                    precision: 16
-                },
+            const button = document.getElementById('generate-report-btn');
+            const prompt = document.getElementById('prompt');
+            const conductSelect = document.getElementById('conduct-select');
+
+            // Initially hide the button
+            button.style.display = 'none';
+
+            // Show the button when conduct is selected
+            conductSelect.addEventListener('change', function() {
+                if (this.value !== '') {
+                    button.style.display = 'block';
+                    prompt.style.display = 'none';
+                } else {
+                    button.style.display = 'none';
+                    prompt.style.display = 'block';
+                }
+            });
+
+            // Function to generate PDF
+            button.addEventListener('click', function() {
+                button.style.display = 'none';
+                
+                // Hide the dropdown arrow by setting appearance to none
+                conductSelect.style.webkitAppearance = 'none';
+                conductSelect.style.mozAppearance = 'none';
+                conductSelect.style.appearance = 'none';
+                
+                // Configure PDF options
+                const options = {
+                    margin: [10, 10, 20, 10],
+                    filename: '{{ data.name}}_Term_{{ data.term.number }}_Report.pdf',
+                    image: { type: 'png', quality: 1 },
+                    html2canvas: { 
+                        scale: 2,
+                        useCORS: true,
+                        letterRendering: true,
+                        windowHeight: document.documentElement.offsetHeight + 40,
+                        windowWidth: document.documentElement.offsetWidth,
+                        logging: false,
+                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                        scrollY: 0,
+                        scrollX: 0
+                    },
+                    jsPDF: { 
+                        unit: 'mm', 
+                        format: 'a4', 
+                        orientation: 'portrait',
+                        compress: false,
+                        putOnlyUsedFonts: true,
+                        precision: 16
+                    },
                     pagebreak: { 
                         mode: ['avoid-all', 'css', 'legacy'],
                         before: '.page-break',
                         after: '.page-break',
-                        avoid: ['tr', 'td'] // Prevent table rows from being split
+                        avoid: ['tr', 'td']
                     }
-            };
+                };
 
-            const element = document.body;
-            
-            // Add padding to the bottom of the content
-            const pageContent = document.querySelector('.page-content');
-            if (pageContent) {
-                pageContent.style.paddingBottom = '40px';
-            }
-            
-            // Generate PDF automatically on load
-            html2pdf().set(options).from(element).save()
-                .then(() => {
-                    window.location.href = '/generate_report';
-                });
+                const element = document.body;
+                
+                // Temporarily hide elements we don't want in the PDF
+                button.style.display = 'none';
+                prompt.style.display = 'none';
+                
+                // Add padding to the bottom of the content
+                const pageContent = document.querySelector('.page-content');
+                if (pageContent) {
+                    pageContent.style.paddingBottom = '40px';
+                }
+                
+                // Reset any body padding/margin that might affect positioning
+                document.body.style.padding = '0';
+                document.body.style.margin = '0';
+                
+                html2pdf().set(options).from(element).save()
+                    .then(() => {
+                        // Restore original styles
+                        document.body.style.padding = '20px';
+                        button.style.display = 'block';
+                        window.location.href = '/generate_report';
+                    });
+            });
         });
     </script>
 </body>
