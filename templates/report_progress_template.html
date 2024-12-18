@@ -192,6 +192,9 @@
                     <td>{{ data.marks['total'][1] }}</td>
                 </tr>
             </table>
+            {% if data.marks | length == 4 %}
+            <br><br><br>
+            {% endif %}
         </div>
 
         <h3>2. BEHAVIOURAL REPORT</h3>
