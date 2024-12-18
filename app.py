@@ -631,65 +631,90 @@ def enroll_classes():
     cursor.execute("SELECT StudentID, StudentName FROM student")
     students = cursor.fetchall()
 
-    # Initialize an empty subjects list
-    subjects = []
-
     if request.method == "POST":
         student_id = request.form["student_id"]
+        subject_type = request.form["subject_type"]
+        
+        try:
+            if subject_type == "core":
+                # Hardcoded subject IDs for English (1), Math (2), and Science (3)
+                subject_ids = [1, 2, 3]
+                
+                for subject_id in subject_ids:
+                    # Enroll the student in each core subject
+                    cursor.execute(
+                        """
+                        INSERT INTO studentsubjects (StudentID, SubjectID)
+                        VALUES (%s, %s)
+                        """,
+                        (student_id, subject_id)
+                    )
 
-        # Fetch subjects that the student is NOT enrolled in
-        cursor.execute(
-            """
-            SELECT s.SubjectID, s.SubjectName 
-            FROM subject s
-            WHERE s.SubjectID NOT IN (
-                SELECT ss.SubjectID 
-                FROM studentsubjects ss 
-                WHERE ss.StudentID = %s
-            )
-        """,
-            (student_id,),
-        )
-        subjects = cursor.fetchall()
+                    # Get all classes for the given SubjectID
+                    cursor.execute(
+                        """
+                        SELECT ClassID FROM classes WHERE SubjectID = %s
+                        """,
+                        (subject_id,)
+                    )
+                    classes = cursor.fetchall()
 
-        if "subject_id" in request.form:
-            subject_id = request.form["subject_id"]
-
-            # Enroll the student in the subject (Insert into StudentSubjects)
-            cursor.execute(
-                """
-                INSERT INTO studentsubjects (StudentID, SubjectID)
-                VALUES (%s, %s)
-            """,
-                (student_id, subject_id),
-            )
-
-            # Get all classes for the given SubjectID
-            cursor.execute(
-                """
-                SELECT ClassID FROM classes WHERE SubjectID = %s
-            """,
-                (subject_id,),
-            )
-            classes = cursor.fetchall()
-
-            # Create attendance records for the student for each class
-            for class_record in classes:
+                    # Create attendance records for the student for each class
+                    for class_record in classes:
+                        cursor.execute(
+                            """
+                            INSERT INTO attendance (StudentID, ClassID, AttendanceStatus)
+                            VALUES (%s, %s, 'Absent')
+                            """,
+                            (student_id, class_record["ClassID"])
+                        )
+                
+                flash("Student enrolled in core subjects successfully!", "success")
+                
+            elif subject_type == "mt":
+                subject_id = 4
+                
+                # Enroll the student in the mother tongue subject
                 cursor.execute(
                     """
-                    INSERT INTO attendance (StudentID, ClassID, AttendanceStatus)
-                    VALUES (%s, %s, 'Absent')
-                """,
-                    (student_id, class_record["ClassID"]),
+                    INSERT INTO studentsubjects (StudentID, SubjectID)
+                    VALUES (%s, %s)
+                    """,
+                    (student_id, subject_id)
                 )
+
+                # Get all classes for the mother tongue subject
+                cursor.execute(
+                    """
+                    SELECT ClassID FROM classes WHERE SubjectID = %s
+                    """,
+                    (subject_id,)
+                )
+                classes = cursor.fetchall()
+
+                # Create attendance records for the student for each class
+                for class_record in classes:
+                    cursor.execute(
+                        """
+                        INSERT INTO attendance (StudentID, ClassID, AttendanceStatus)
+                        VALUES (%s, %s, 'Absent')
+                        """,
+                        (student_id, class_record["ClassID"])
+                    )
+                
+                flash("Student enrolled in Mother Tongue successfully!", "success")
 
             conn.commit()
             return redirect(url_for("enroll_classes"))
+            
+        except mysql.connector.Error as err:
+            conn.rollback()
+            flash(f"Error enrolling student: {err}", "error")
 
     cursor.close()
     conn.close()
 
-    return render_template("enroll_classes.html", students=students, subjects=subjects)
+    return render_template("enroll_classes.html", students=students)
 
 
 @app.route("/get_unenrolled_subjects/<int:student_id>")

@@ -50,9 +50,11 @@
             </div>
 
             <div class="mb-3">
-                <label for="subject_id" class="form-label">Select Subject</label>
-                <select class="form-select" id="subject_id" name="subject_id" required>
-                    <option value="">Select a subject</option>
+                <label for="subject_type" class="form-label">Select Subject Type</label>
+                <select class="form-select" id="subject_type" name="subject_type" required>
+                    <option value="">Select subject type</option>
+                    <option value="core">Core Subjects (English, Math, Science)</option>
+                    <option value="mt">Mother Tongue</option>
                 </select>
             </div>
 
@@ -62,25 +64,44 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        document.getElementById("student_id").addEventListener("change", function() {
-            const studentId = this.value;
-            const subjectDropdown = document.getElementById("subject_id");
+        document.getElementById("subject_type").addEventListener("change", function() {
+            const mtSubjectDiv = document.getElementById("mt_subject_div");
+            const subjectSelect = document.getElementById("subject_id");
             
-            // Clear the subject dropdown
-            subjectDropdown.innerHTML = '<option value="">Select a subject</option>';
+            if (this.value === "mt") {
+                mtSubjectDiv.style.display = "block";
+                subjectSelect.required = true;
+                
+                // Fetch mother tongue subjects
+                const studentId = document.getElementById("student_id").value;
+                if (studentId) {
+                    fetch(`/get_unenrolled_subjects/${studentId}`)
+                        .then(response => response.json())
+                        .then(subjects => {
+                            subjectSelect.innerHTML = '<option value="">Select a subject</option>';
+                            subjects.forEach(subject => {
+                                // Only add Mother Tongue subjects
+                                if (subject.SubjectName.toLowerCase().includes('mother tongue')) {
+                                    const option = document.createElement("option");
+                                    option.value = subject.SubjectID;
+                                    option.textContent = subject.SubjectName;
+                                    subjectSelect.appendChild(option);
+                                }
+                            });
+                        })
+                        .catch(error => console.error("Error fetching subjects:", error));
+                }
+            } else {
+                mtSubjectDiv.style.display = "none";
+                subjectSelect.required = false;
+                subjectSelect.value = "";
+            }
+        });
 
-            if (studentId) {
-                fetch(`/get_unenrolled_subjects/${studentId}`)
-                    .then(response => response.json())
-                    .then(subjects => {
-                        subjects.forEach(subject => {
-                            const option = document.createElement("option");
-                            option.value = subject.SubjectID;
-                            option.textContent = subject.SubjectName;
-                            subjectDropdown.appendChild(option);
-                        });
-                    })
-                    .catch(error => console.error("Error fetching subjects:", error));
+        document.getElementById("student_id").addEventListener("change", function() {
+            const subjectType = document.getElementById("subject_type").value;
+            if (subjectType === "mt") {
+                document.getElementById("subject_type").dispatchEvent(new Event('change'));
             }
         });
     </script>
