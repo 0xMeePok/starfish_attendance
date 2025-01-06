@@ -228,15 +228,17 @@ def init_bot():
             bot_instance = bot_thread
             logger.info("Bot thread started")
             
-            # Schedule the attendance check
+            # Schedule the attendance check for Mondays at 10:15 AM
             scheduler.add_job(
                 check_student_attendance,
                 'cron',
+                day_of_week='mon',  # Specify Monday
                 hour=10,
                 minute=15,
                 id='attendance_check',
                 replace_existing=True
             )
+            logger.info("Attendance check scheduled for Mondays at 10:15 AM")
         except Exception as e:
             logger.error(f"Failed to initialize bot: {e}")
 
@@ -249,51 +251,6 @@ def before_request():
 
 # Add cleanup handler
 atexit.register(lambda: bot.stop_polling() if bot_instance else None)
-
-# Modify your check_attendance function in the AttendanceBot class
-# def check_student_attendance():
-#     """Check attendance for students at 10:15 AM"""
-#     current_time = datetime.now().time()
-#     target_time = time(10, 15)  # 10:15 AM
-    
-#     if current_time.hour == target_time.hour and current_time.minute == target_time.minute:
-#         try:
-#             conn = get_db_connection()
-#             cursor = conn.cursor()
-            
-#             # Get students who haven't marked attendance for today's first class
-#             today = datetime.now().date()
-#             cursor.execute("""
-#                 SELECT DISTINCT s.TelegramUsername, uc.chat_id
-#                 FROM student s
-#                 JOIN studentsubjects ss ON s.StudentID = ss.StudentID
-#                 JOIN classes c ON ss.SubjectID = c.SubjectID
-#                 LEFT JOIN attendance a ON s.StudentID = a.StudentID AND c.ClassID = a.ClassID
-#                 LEFT JOIN user_channels uc ON s.TelegramUsername = uc.username
-#                 WHERE DATE(c.ClassDate) = %s
-#                 AND (a.AttendanceStatus IS NULL OR a.AttendanceStatus = 'Absent')
-#                 AND s.TelegramUsername IS NOT NULL
-#                 AND uc.chat_id IS NOT NULL
-#             """, (today,))
-            
-#             absent_students = cursor.fetchall()
-            
-#             for student in absent_students:
-#                 username, chat_id = student
-#                 try:
-#                     message = bot.send_message(
-#                         chat_id,
-#                         "Are you coming to class today? Please reply 'yes' or 'no'."
-#                     )
-#                     bot.register_next_step_handler(message, handle_attendance_response)
-#                 except Exception as e:
-#                     logger.error(f"Failed to send message to {username}: {e}")
-            
-#         except Exception as e:
-#             logger.error(f"Error in attendance check: {e}")
-#         finally:
-#             cursor.close()
-#             conn.close()
 
 def check_student_attendance():
     """Check attendance for students (test version without time check)"""
@@ -347,15 +304,6 @@ def test_attendance_check():
         return jsonify({"status": "success", "message": "Attendance check triggered"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
-# Add the scheduler job
-scheduler.add_job(
-    check_student_attendance,
-    'cron',
-    hour=10,
-    minute=15,
-    id='attendance_check'
-)
 
 
 # Database connection details using environment variables
