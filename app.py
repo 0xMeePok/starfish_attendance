@@ -40,7 +40,6 @@ TELEGRAM_DIR = os.path.join(os.path.dirname(__file__), "telegram")
 sys.path.append(TELEGRAM_DIR)
 
 
-
 # Load environment variables from the .env file
 load_dotenv()
 
@@ -63,11 +62,12 @@ import telebot
 from threading import Thread
 
 # Initialize bot with your token
-bot = telebot.TeleBot(os.getenv('BOT_TOKEN'), parse_mode="html")
+bot = telebot.TeleBot(os.getenv("BOT_TOKEN"), parse_mode="html")
 bot_instance = None
 
+
 # When user uses /start command
-@bot.message_handler(commands=['start'])
+@bot.message_handler(commands=["start"])
 def start(message):
     chat_id = message.chat.id
     username = message.chat.username
@@ -79,7 +79,7 @@ def start(message):
             # Update the channel ID in user_channels table
             cursor.execute(
                 "INSERT INTO user_channels (username, chat_id) VALUES (%s, %s) ON DUPLICATE KEY UPDATE chat_id = %s",
-                (username, chat_id, chat_id)
+                (username, chat_id, chat_id),
             )
             conn.commit()
             bot.reply_to(message, f"You have been verified as {username}.")
@@ -91,24 +91,27 @@ def start(message):
     else:
         bot.reply_to(message, "Please set a username in your Telegram settings.")
 
+
 # Route for sending messages via webhook
-@app.route('/send_message', methods=['POST'])
+@app.route("/send_message", methods=["POST"])
 def send_message():
     data = request.json
-    username = data.get('username')
-    message_text = data.get('message')
-    
+    username = data.get("username")
+    message_text = data.get("message")
+
     if not username or not message_text:
         return jsonify({"error": "Missing username or message"}), 400
-    
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         # Get chat_id for the user
-        cursor.execute("SELECT chat_id FROM user_channels WHERE username = %s", (username,))
+        cursor.execute(
+            "SELECT chat_id FROM user_channels WHERE username = %s", (username,)
+        )
         result = cursor.fetchone()
-        
+
         if result:
             chat_id = result[0]
             # Send message
@@ -118,7 +121,7 @@ def send_message():
             return jsonify({"status": "success"}), 200
         else:
             return jsonify({"error": "User not found"}), 404
-            
+
     except Exception as e:
         logger.error(f"Error sending message: {e}")
         return jsonify({"error": str(e)}), 500
@@ -126,86 +129,106 @@ def send_message():
         cursor.close()
         conn.close()
 
+
 def handle_attendance_response(message):
     """First handler: Process yes/no response about attending class"""
     chat_id = message.chat.id
     username = f"@{message.chat.username}" if message.chat.username else None
     response = message.text.strip().lower()
-    
+
     if not username:
         bot.send_message(chat_id, "Please set a username in Telegram settings.")
         return
-        
+
     # Check if response is clear yes/no
-    if response in ['yes', 'y', 'yeah', 'yep']:
+    if response in ["yes", "y", "yeah", "yep"]:
         bot.send_message(chat_id, "Please provide your reason for being late.")
         bot.register_next_step_handler(message, handle_late_reason)
-    elif response in ['no', 'n', 'nope', 'cant', "can't", 'cannot']:
+    elif response in ["no", "n", "nope", "cant", "can't", "cannot"]:
         bot.send_message(chat_id, "Please provide your reason for absence.")
         bot.register_next_step_handler(message, handle_absent_reason)
     else:
-        bot.send_message(chat_id, "Please respond with 'yes' or 'no' if you're coming to class today.")
+        bot.send_message(
+            chat_id,
+            "Please respond with 'yes' or 'no' if you're coming to class today.",
+        )
         bot.register_next_step_handler(message, handle_attendance_response)
+
 
 def handle_late_reason(message):
     """Handle reason for being late"""
     chat_id = message.chat.id
     username = f"@{message.chat.username}" if message.chat.username else None
     reason = message.text.strip()
-    
+
     update_attendance_records(username, "Late", reason)
-    bot.send_message(chat_id, "Thank you, your late attendance and reason have been recorded for all today's classes.")
+    bot.send_message(
+        chat_id,
+        "Thank you, your late attendance and reason have been recorded for all today's classes.",
+    )
+
 
 def handle_absent_reason(message):
     """Handle reason for being absent"""
     chat_id = message.chat.id
     username = f"@{message.chat.username}" if message.chat.username else None
     reason = message.text.strip()
-    
+
     update_attendance_records(username, "Absent with VR", reason)
-    bot.send_message(chat_id, "Thank you, your absence and reason have been recorded for all today's classes.")
+    bot.send_message(
+        chat_id,
+        "Thank you, your absence and reason have been recorded for all today's classes.",
+    )
+
 
 def update_attendance_records(username, status, reason):
     """Update attendance for all classes today for the student"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         # Get today's date
         today = datetime.now().date()
-        
+
         # Get all classes for the student today
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT DISTINCT c.ClassID, s.StudentID 
             FROM classes c 
             JOIN studentsubjects ss ON c.SubjectID = ss.SubjectID
             JOIN student s ON ss.StudentID = s.StudentID
             WHERE DATE(c.ClassDate) = %s 
             AND s.TelegramUsername = %s
-        """, (today, username))
-        
+        """,
+            (today, username),
+        )
+
         class_info = cursor.fetchall()
-        
+
         if class_info:
             # Update attendance for all classes
             for class_id, student_id in class_info:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO attendance (StudentID, ClassID, AttendanceStatus, Reason, TimeAttended)
                     VALUES (%s, %s, %s, %s, CURRENT_TIME())
                     ON DUPLICATE KEY UPDATE 
                     AttendanceStatus = VALUES(AttendanceStatus),
                     Reason = VALUES(Reason),
                     TimeAttended = VALUES(TimeAttended)
-                """, (student_id, class_id, status, reason))
-            
+                """,
+                    (student_id, class_id, status, reason),
+                )
+
             conn.commit()
-    
+
     except Exception as e:
         logger.error(f"Error updating attendance records: {e}")
         raise
     finally:
         cursor.close()
         conn.close()
+
 
 def run_bot():
     """Function to run the bot polling in a separate thread"""
@@ -217,6 +240,7 @@ def run_bot():
             logger.error(f"Bot polling error: {e}")
             time.sleep(10)  # Wait before retrying
 
+
 def init_bot():
     """Initialize the Telegram bot"""
     global bot_instance
@@ -227,20 +251,21 @@ def init_bot():
             bot_thread.start()
             bot_instance = bot_thread
             logger.info("Bot thread started")
-            
+
             # Schedule the attendance check for Mondays at 10:15 AM
             scheduler.add_job(
                 check_student_attendance,
-                'cron',
-                day_of_week='mon',  # Specify Monday
+                "cron",
+                day_of_week="mon",  # Specify Monday
                 hour=10,
                 minute=15,
-                id='attendance_check',
-                replace_existing=True
+                id="attendance_check",
+                replace_existing=True,
             )
             logger.info("Attendance check scheduled for Mondays at 10:15 AM")
         except Exception as e:
             logger.error(f"Failed to initialize bot: {e}")
+
 
 @app.before_request
 def before_request():
@@ -249,8 +274,10 @@ def before_request():
     if bot_instance is None:
         init_bot()
 
+
 # Add cleanup handler
 atexit.register(lambda: bot.stop_polling() if bot_instance else None)
+
 
 def check_student_attendance():
     """Check attendance for students (test version without time check)"""
@@ -258,10 +285,11 @@ def check_student_attendance():
         logger.info("Running attendance check...")
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         # Get students who haven't marked attendance for today's first class
         today = datetime.now().date()
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT DISTINCT s.TelegramUsername, uc.chat_id
             FROM student s
             JOIN studentsubjects ss ON s.StudentID = ss.StudentID
@@ -272,36 +300,42 @@ def check_student_attendance():
             AND (a.AttendanceStatus IS NULL OR a.AttendanceStatus = 'Absent')
             AND s.TelegramUsername IS NOT NULL
             AND uc.chat_id IS NOT NULL
-        """, (today,))
-        
+        """,
+            (today,),
+        )
+
         absent_students = cursor.fetchall()
         logger.info(f"Found {len(absent_students)} students to check")
-        
+
         for student in absent_students:
             username, chat_id = student
             logger.info(f"Sending message to {username}")
             try:
                 message = bot.send_message(
                     chat_id,
-                    "Are you coming to class today? Please reply with your reason if you will be absent or late."
+                    "Are you coming to class today? Please reply with your reason if you will be absent or late.",
                 )
                 bot.register_next_step_handler(message, handle_attendance_response)
                 logger.info(f"Message sent successfully to {username}")
             except Exception as e:
                 logger.error(f"Failed to send message to {username}: {e}")
-            
+
     except Exception as e:
         logger.error(f"Error in attendance check: {e}")
     finally:
         cursor.close()
         conn.close()
 
+
 # Add a test endpoint to trigger the check manually
-@app.route('/test_attendance_check')
+@app.route("/test_attendance_check")
 def test_attendance_check():
     try:
         check_student_attendance()
-        return jsonify({"status": "success", "message": "Attendance check triggered"}), 200
+        return (
+            jsonify({"status": "success", "message": "Attendance check triggered"}),
+            200,
+        )
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -501,16 +535,19 @@ def upload_student_enrollment():
         return redirect(url_for("enroll_student"))
 
     if file and file.filename.endswith(".csv"):
+        # Open database connection and cursor before the try block
+        conn = get_db_connection()
+        cursor = conn.cursor()
         try:
             # Read the CSV file
             stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
             csv_reader = csv.reader(stream)
-            next(csv_reader)  # Skip header row if present
 
-            conn = get_db_connection()
-            cursor = conn.cursor()
+            # If your CSV has a header row, skip it (uncomment the next line if needed)
+            # next(csv_reader)
 
             for row in csv_reader:
+                # Validate the expected number of columns (8 in this case)
                 if len(row) != 8:
                     flash(f"Invalid row in CSV: {row}. Expected 8 fields.", "error")
                     continue
@@ -539,7 +576,17 @@ def upload_student_enrollment():
 
                 # Insert the new student into the database
                 insert_query = """
-                INSERT INTO student (StudentName, Email, PhoneNumber, SocialWorkerEmail, SocialWorkerPhone, ParentEmail, ParentPhone, TelegramUsername, ChannelID)
+                INSERT INTO student (
+                    StudentName,
+                    Email,
+                    PhoneNumber,
+                    SocialWorkerEmail,
+                    SocialWorkerPhone,
+                    ParentEmail,
+                    ParentPhone,
+                    TelegramUsername,
+                    ChannelID
+                )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 cursor.execute(
@@ -557,13 +604,23 @@ def upload_student_enrollment():
                     ),
                 )
 
+            # Commit the transaction after all inserts
             conn.commit()
+            flash("Students enrolled successfully from CSV!", "success")
+
+        except mysql.connector.Error as err:
+            # Handle MySQL-specific errors
+            flash(f"Error enrolling students from CSV: {err}", "error")
+
+        except Exception as e:
+            # Handle any other exceptions (CSV parsing, etc.)
+            flash(f"Error processing CSV file: {str(e)}", "error")
+
+        finally:
+            # Close cursor and connection in a finally block
             cursor.close()
             conn.close()
 
-            flash("Students enrolled successfully from CSV!", "success")
-        except Exception as e:
-            flash(f"Error processing CSV file: {str(e)}", "error")
     else:
         flash("Invalid file type. Please upload a CSV file.", "error")
 
@@ -582,12 +639,12 @@ def enroll_classes():
     if request.method == "POST":
         student_id = request.form["student_id"]
         subject_type = request.form["subject_type"]
-        
+
         try:
             if subject_type == "core":
                 # Hardcoded subject IDs for English (1), Math (2), and Science (3)
                 subject_ids = [1, 2, 3]
-                
+
                 for subject_id in subject_ids:
                     # Enroll the student in each core subject
                     cursor.execute(
@@ -595,7 +652,7 @@ def enroll_classes():
                         INSERT INTO studentsubjects (StudentID, SubjectID)
                         VALUES (%s, %s)
                         """,
-                        (student_id, subject_id)
+                        (student_id, subject_id),
                     )
 
                     # Get all classes for the given SubjectID
@@ -603,7 +660,7 @@ def enroll_classes():
                         """
                         SELECT ClassID FROM classes WHERE SubjectID = %s
                         """,
-                        (subject_id,)
+                        (subject_id,),
                     )
                     classes = cursor.fetchall()
 
@@ -614,21 +671,21 @@ def enroll_classes():
                             INSERT INTO attendance (StudentID, ClassID, AttendanceStatus)
                             VALUES (%s, %s, 'Absent')
                             """,
-                            (student_id, class_record["ClassID"])
+                            (student_id, class_record["ClassID"]),
                         )
-                
+
                 flash("Student enrolled in core subjects successfully!", "success")
-                
+
             elif subject_type == "mt":
                 subject_id = 4
-                
+
                 # Enroll the student in the mother tongue subject
                 cursor.execute(
                     """
                     INSERT INTO studentsubjects (StudentID, SubjectID)
                     VALUES (%s, %s)
                     """,
-                    (student_id, subject_id)
+                    (student_id, subject_id),
                 )
 
                 # Get all classes for the mother tongue subject
@@ -636,7 +693,7 @@ def enroll_classes():
                     """
                     SELECT ClassID FROM classes WHERE SubjectID = %s
                     """,
-                    (subject_id,)
+                    (subject_id,),
                 )
                 classes = cursor.fetchall()
 
@@ -647,14 +704,14 @@ def enroll_classes():
                         INSERT INTO attendance (StudentID, ClassID, AttendanceStatus)
                         VALUES (%s, %s, 'Absent')
                         """,
-                        (student_id, class_record["ClassID"])
+                        (student_id, class_record["ClassID"]),
                     )
-                
+
                 flash("Student enrolled in Mother Tongue successfully!", "success")
 
             conn.commit()
             return redirect(url_for("enroll_classes"))
-            
+
         except mysql.connector.Error as err:
             conn.rollback()
             flash(f"Error enrolling student: {err}", "error")
@@ -1045,7 +1102,6 @@ def create_marks():
         # Get the checkbox value - will be 'on' if checked, None if unchecked
         is_term_test = 1 if request.form.get("is_term_test") else 0
 
-
         # Insert the marks into the database
         insert_query = """
         INSERT INTO marks (StudentID, SubjectID, TestType, MarksObtained, TotalMarks, Weightage, Term, IsTermTest)
@@ -1053,7 +1109,16 @@ def create_marks():
         """
         cursor.execute(
             insert_query,
-            (student_id, subject, test_type, marks_obtained, total_marks, weightage, term_no, is_term_test),
+            (
+                student_id,
+                subject,
+                test_type,
+                marks_obtained,
+                total_marks,
+                weightage,
+                term_no,
+                is_term_test,
+            ),
         )
         conn.commit()
 
@@ -1456,10 +1521,12 @@ def generate_report():
         min_year = min(years)
     except:
         # Handle case when there are no attendance records
-        return render_template("generate_report.html", 
-                             students=students, 
-                             years=[], 
-                             error_message="Database does NOT contain ANY class information or test scores, therefore unable to generate reports of students")
+        return render_template(
+            "generate_report.html",
+            students=students,
+            years=[],
+            error_message="Database does NOT contain ANY class information or test scores, therefore unable to generate reports of students",
+        )
 
     years = list(range(min_year, max_year + 1))
 
@@ -1472,66 +1539,102 @@ def generate_report():
         try:
             if selected_report == "1":  # Progress Report
                 # Get student data
-                name, marks_data, attendanceByStatus, year = retrieveProgressDetails(selected_student_id, selected_year, selected_term)
+                name, marks_data, attendanceByStatus, year = retrieveProgressDetails(
+                    selected_student_id, selected_year, selected_term
+                )
             else:  # Overall Report
                 # Get student data
-                name, marks_data, attendanceByStatus, year = retrieveDetails(selected_student_id, selected_year)
+                name, marks_data, attendanceByStatus, year = retrieveDetails(
+                    selected_student_id, selected_year
+                )
 
             # Check for missing core subjects
-            required_subjects = ['English', 'Math', 'Science']
-            missing_subjects = [subject for subject in required_subjects if subject not in marks_data]
+            required_subjects = ["English", "Math", "Science"]
+            missing_subjects = [
+                subject for subject in required_subjects if subject not in marks_data
+            ]
 
             if missing_subjects:
                 if selected_report == "1":
                     missing_subjects_str = ", ".join(missing_subjects)
                     # Get student name
-                    cursor.execute("SELECT StudentName FROM student WHERE StudentID = %s", (selected_student_id,))
-                    student_name = cursor.fetchone()[0]  # This gets just the name string
-                    flash(f"Warning: No relevant data found for the following subjects: {missing_subjects_str}, Term {selected_term}, Year {selected_year}, Student {student_name}", "warning")
-                    flash(f"Ensure that you have added the Term Test Results for this student in that Term in Add Result Page", "warning")
-                    return redirect(url_for('generate_report'))
+                    cursor.execute(
+                        "SELECT StudentName FROM student WHERE StudentID = %s",
+                        (selected_student_id,),
+                    )
+                    student_name = cursor.fetchone()[
+                        0
+                    ]  # This gets just the name string
+                    flash(
+                        f"Warning: No relevant data found for the following subjects: {missing_subjects_str}, Term {selected_term}, Year {selected_year}, Student {student_name}",
+                        "warning",
+                    )
+                    flash(
+                        f"Ensure that you have added the Term Test Results for this student in that Term in Add Result Page",
+                        "warning",
+                    )
+                    return redirect(url_for("generate_report"))
                 else:
                     missing_subjects_str = ", ".join(missing_subjects)
                     # Get student name
-                    cursor.execute("SELECT StudentName FROM student WHERE StudentID = %s", (selected_student_id,))
-                    student_name = cursor.fetchone()[0]  # This gets just the name string
-                    flash(f"Warning: No relevant data found for the following subjects: {missing_subjects_str}, Year {selected_year}, Student {student_name}", "warning")
-                    flash(f"Ensure that you have added at least 1 assessment for this student in Add Result Page", "warning")
-                    return redirect(url_for('generate_report'))
+                    cursor.execute(
+                        "SELECT StudentName FROM student WHERE StudentID = %s",
+                        (selected_student_id,),
+                    )
+                    student_name = cursor.fetchone()[
+                        0
+                    ]  # This gets just the name string
+                    flash(
+                        f"Warning: No relevant data found for the following subjects: {missing_subjects_str}, Year {selected_year}, Student {student_name}",
+                        "warning",
+                    )
+                    flash(
+                        f"Ensure that you have added at least 1 assessment for this student in Add Result Page",
+                        "warning",
+                    )
+                    return redirect(url_for("generate_report"))
 
             data = {
                 "name": name,
                 "marks": marks_data,
                 "attendanceByStatus": attendanceByStatus,
-                "year": year
+                "year": year,
             }
 
             if selected_report == "1":
                 # Fetch term dates for progress report
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT start_date, end_date 
                     FROM term 
                     WHERE id = %s
-                """, (selected_term,))
+                """,
+                    (selected_term,),
+                )
                 term_dates = cursor.fetchone()
-                
+
                 if term_dates:
                     data["term"] = {
                         "number": selected_term,
-                        "start_date": term_dates[0].strftime('%d/%m/%y'),
-                        "end_date": term_dates[1].strftime('%d/%m/%y')
+                        "start_date": term_dates[0].strftime("%d/%m/%y"),
+                        "end_date": term_dates[1].strftime("%d/%m/%y"),
                     }
-                return render_template("report_progress_template.html", data=data, now=datetime.now())
+                return render_template(
+                    "report_progress_template.html", data=data, now=datetime.now()
+                )
             else:
-                return render_template("report_overall_template.html", data=data, now=datetime.now())
+                return render_template(
+                    "report_overall_template.html", data=data, now=datetime.now()
+                )
 
         except Exception as e:
             flash(f"Error generating report: {str(e)}", "error")
-            return redirect(url_for('generate_report'))
+            return redirect(url_for("generate_report"))
 
     cursor.close()
     conn.close()
     return render_template("generate_report.html", students=students, years=years)
+
 
 def retrieveProgressDetails(student_id, year, term):
     conn = get_db_connection()
@@ -1545,12 +1648,12 @@ def retrieveProgressDetails(student_id, year, term):
             FROM student
             WHERE StudentID = %s
             """,
-            (student_id,)
+            (student_id,),
         )
-        
+
         # Fetch the single name value instead of all results
         name = cursor.fetchone()[0]  # This gets just the name string
-        
+
     except Exception as e:
         logger.error(f"Error fetching student name: {e}")
         raise
@@ -1570,11 +1673,11 @@ def retrieveProgressDetails(student_id, year, term):
             WHERE StudentID = %s
             AND YEAR(classDate) = %s
         """,
-            (term, student_id, year)
+            (term, student_id, year),
         )
         # Fetch all results
         results = cursor.fetchall()
-        
+
         marks_data = {}
 
         for row in results:
@@ -1582,13 +1685,21 @@ def retrieveProgressDetails(student_id, year, term):
 
             if subject not in marks_data:
                 if marks_obtained == 0 and total_marks == 0:
-                    marks_data[subject] = ['-', '-', 'Absent']
+                    marks_data[subject] = ["-", "-", "Absent"]
                 else:
                     try:
-                        percentage = (marks_obtained / total_marks * 100) if total_marks > 0 else 0
-                        marks_data[subject] = [marks_obtained, total_marks, get_grade(percentage)]
+                        percentage = (
+                            (marks_obtained / total_marks * 100)
+                            if total_marks > 0
+                            else 0
+                        )
+                        marks_data[subject] = [
+                            marks_obtained,
+                            total_marks,
+                            get_grade(percentage),
+                        ]
                     except:
-                        marks_data[subject] = [0, 0, 'N/A']
+                        marks_data[subject] = [0, 0, "N/A"]
 
         # Calculate average grade safely
         if marks_data and any(isinstance(mark, list) for mark in marks_data.values()):
@@ -1603,7 +1714,7 @@ def retrieveProgressDetails(student_id, year, term):
                     else:
                         try:
                             if mark[1] > 0:  # Check for non-zero denominator
-                                total_percentage += round(mark[0]/mark[1]*100, 2)
+                                total_percentage += round(mark[0] / mark[1] * 100, 2)
                                 num_subjects += 1
                                 num_present_subjects += 1
                         except:
@@ -1615,19 +1726,21 @@ def retrieveProgressDetails(student_id, year, term):
             else:
                 average_percentage = 0
 
-            marks_data['total'] = [average_percentage, get_grade(average_percentage)]
+            marks_data["total"] = [average_percentage, get_grade(average_percentage)]
         else:
-            marks_data['total'] = [0, get_grade(0)]
+            marks_data["total"] = [0, get_grade(0)]
 
-
-         # Get term dates
-        cursor.execute("""
+        # Get term dates
+        cursor.execute(
+            """
             SELECT start_date, end_date 
             FROM term 
             WHERE id = %s
-        """, (term,))
+        """,
+            (term,),
+        )
         term_dates = cursor.fetchone()
-        
+
         if term_dates:
             start_date, end_date = term_dates
         else:
@@ -1666,6 +1779,7 @@ def retrieveProgressDetails(student_id, year, term):
 
     except Exception as e:
         print(f"An error occurred: {e}")
+
 
 def retrieveDetails(student_id, year):
     conn = get_db_connection()
@@ -1737,14 +1851,18 @@ def retrieveDetails(student_id, year):
     # Calculate average grade safely
     if marks_data:
         try:
-            total_marks = sum(mark[0] for mark in marks_data.values() if isinstance(mark, list))
-            num_subjects = len([mark for mark in marks_data.values() if isinstance(mark, list)])
+            total_marks = sum(
+                mark[0] for mark in marks_data.values() if isinstance(mark, list)
+            )
+            num_subjects = len(
+                [mark for mark in marks_data.values() if isinstance(mark, list)]
+            )
             average_mark = total_marks / num_subjects if num_subjects > 0 else 0
-            marks_data['total'] = [average_mark, get_grade(average_mark)]
+            marks_data["total"] = [average_mark, get_grade(average_mark)]
         except:
-            marks_data['total'] = [0, get_grade(0)]
+            marks_data["total"] = [0, get_grade(0)]
     else:
-        marks_data['total'] = [0, get_grade(0)]
+        marks_data["total"] = [0, get_grade(0)]
 
     cursor.execute(
         """
@@ -2128,8 +2246,6 @@ def flash_message():
     return redirect(url_for("edit_marks"))
 
 
-
-
 @app.route("/get_students_by_year", methods=["GET"])
 def get_students_by_year():
     selected_year = request.args.get("year")
@@ -2167,123 +2283,132 @@ def get_students_by_year():
         cursor.close()
         conn.close()
 
+
 @app.route("/set_term", methods=["GET", "POST"])
 def set_term():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    
+
     if request.method == "POST":
         try:
             # Validate dates before updating
             for term_id in range(1, 4):
-                start_date = datetime.strptime(request.form[f'start_date_{term_id}'], '%Y-%m-%d')
-                end_date = datetime.strptime(request.form[f'end_date_{term_id}'], '%Y-%m-%d')
-                
+                start_date = datetime.strptime(
+                    request.form[f"start_date_{term_id}"], "%Y-%m-%d"
+                )
+                end_date = datetime.strptime(
+                    request.form[f"end_date_{term_id}"], "%Y-%m-%d"
+                )
+
                 # Check if start date is after end date
                 if start_date > end_date:
-                    flash(f"Term {term_id}: Start date cannot be after end date", "error")
-                    return redirect(url_for('set_term'))
+                    flash(
+                        f"Term {term_id}: Start date cannot be after end date", "error"
+                    )
+                    return redirect(url_for("set_term"))
 
             # If all dates are valid, proceed with update
             for term_id in range(1, 4):
-                start_date = request.form[f'start_date_{term_id}']
-                end_date = request.form[f'end_date_{term_id}']
-                
-                cursor.execute("""
+                start_date = request.form[f"start_date_{term_id}"]
+                end_date = request.form[f"end_date_{term_id}"]
+
+                cursor.execute(
+                    """
                     INSERT INTO term (id, start_date, end_date)
                     VALUES (%s, %s, %s)
                     ON DUPLICATE KEY UPDATE 
                         start_date = VALUES(start_date),
                         end_date = VALUES(end_date)
-                """, (term_id, start_date, end_date))
-            
+                """,
+                    (term_id, start_date, end_date),
+                )
+
             conn.commit()
             flash("Terms updated successfully!", "success")
-            
+
         except Exception as e:
             conn.rollback()
             flash(f"Error updating terms: {str(e)}", "error")
-            
-        return redirect(url_for('set_term'))
-    
+
+        return redirect(url_for("set_term"))
+
     # Fetch existing terms
     cursor.execute("SELECT * FROM term ORDER BY id")
     terms = cursor.fetchall()
-    
+
     # If no terms exist, create empty ones
     if not terms:
-        terms = [
-            {'id': i, 'start_date': '', 'end_date': ''} 
-            for i in range(1, 4)
-        ]
-    
+        terms = [{"id": i, "start_date": "", "end_date": ""} for i in range(1, 4)]
+
     cursor.close()
     conn.close()
-    
-    return render_template('term.html', terms=terms)
+
+    return render_template("term.html", terms=terms)
+
 
 @app.route("/export_data", methods=["POST"])
 def export_data():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         # Create a timestamp for the export
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        export_dir = f'exports'
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        export_dir = f"exports"
         os.makedirs(export_dir, exist_ok=True)
-        
+
         # List of tables to export
         tables = [
-            'attendance',
-            'marks',
-            'studentsubjects',
-            'classes',
-            'student',
-            'user_channels',
+            "attendance",
+            "marks",
+            "studentsubjects",
+            "classes",
+            "student",
+            "user_channels",
         ]
-        
+
         # Export each table to CSV
         for table in tables:
             cursor.execute(f"SELECT * FROM {table}")
             rows = cursor.fetchall()
-            
+
             # Get column names
             cursor.execute(f"SHOW COLUMNS FROM {table}")
             columns = [column[0] for column in cursor.fetchall()]
-            
+
             # Write to CSV
-            filepath = os.path.join(export_dir, f'{table}.csv')
-            with open(filepath, 'w', newline='') as f:
+            filepath = os.path.join(export_dir, f"{table}.csv")
+            with open(filepath, "w", newline="") as f:
                 writer = csv.writer(f)
                 writer.writerow(columns)  # Write headers
-                writer.writerows(rows)    # Write data
-        
+                writer.writerows(rows)  # Write data
+
         # Create ZIP file
-        zip_filepath = f'{export_dir}.zip'
-        with ZipFile(zip_filepath, 'w') as zipf:
+        zip_filepath = f"{export_dir}.zip"
+        with ZipFile(zip_filepath, "w") as zipf:
             for table in tables:
-                csv_file = os.path.join(export_dir, f'{table}.csv')
-                zipf.write(csv_file, f'{table}.csv')
+                csv_file = os.path.join(export_dir, f"{table}.csv")
+                zipf.write(csv_file, f"{table}.csv")
                 os.remove(csv_file)  # Remove individual CSV files
-        
+
         os.rmdir(export_dir)  # Remove temporary directory
-        
+
         # Send the ZIP file
         return send_file(
             zip_filepath,
-            mimetype='application/zip',
+            mimetype="application/zip",
             as_attachment=True,
-            download_name=f'attendance_marks_data_{timestamp}.zip'
+            download_name=f"attendance_marks_data_{timestamp}.zip",
         )
-        
+
     except Exception as e:
         flash(f"Error exporting data: {str(e)}", "error")
-        return redirect(url_for('delete_record'))
-        
+        return redirect(url_for("delete_record"))
+
     finally:
         cursor.close()
         conn.close()
+
 
 @app.route("/delete_record", methods=["GET", "POST"])
 def delete_record():
@@ -2291,79 +2416,82 @@ def delete_record():
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
-            
+
             # List of tables to truncate
             # Note: term, users table is not included in deletion
             tables = [
-                'attendance',
-                'marks',
-                'studentsubjects',
-                'classes',
-                'student',
-                'user_channels'
+                "attendance",
+                "marks",
+                "studentsubjects",
+                "classes",
+                "student",
+                "user_channels",
             ]
-            
+
             # Disable foreign key checks temporarily
             cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
-            
+
             # Truncate all tables
             for table in tables:
                 cursor.execute(f"TRUNCATE TABLE {table}")
-            
+
             # Re-enable foreign key checks
             cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
-            
+
             conn.commit()
             flash("All records have been successfully deleted.", "success")
-            
+
         except Exception as e:
             conn.rollback()
             flash(f"Error deleting records: {str(e)}", "error")
         finally:
             cursor.close()
             conn.close()
-        
-        return redirect(url_for('delete_record'))
-        
-    return render_template('delete_record.html')
+
+        return redirect(url_for("delete_record"))
+
+    return render_template("delete_record.html")
+
 
 import os
 from werkzeug.utils import secure_filename
 
-UPLOAD_FOLDER = 'static'
-ALLOWED_EXTENSIONS = {'jpg'}
+UPLOAD_FOLDER = "static"
+ALLOWED_EXTENSIONS = {"jpg"}
+
 
 def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@app.route('/upload_logo', methods=['POST'])
+
+@app.route("/upload_logo", methods=["POST"])
 def upload_logo():
-    if 'logo_file' not in request.files:
-        flash('No file selected', 'warning')
-        return redirect(url_for('generate_report'))
-    
-    file = request.files['logo_file']
-    
-    if file.filename == '':
-        flash('No file selected', 'warning')
-        return redirect(url_for('generate_report'))
-    
+    if "logo_file" not in request.files:
+        flash("No file selected", "warning")
+        return redirect(url_for("generate_report"))
+
+    file = request.files["logo_file"]
+
+    if file.filename == "":
+        flash("No file selected", "warning")
+        return redirect(url_for("generate_report"))
+
     if file and allowed_file(file.filename):
         # Secure the filename and save it
-        filename = 'starfish_text.jpg'  # Keep the same filename
+        filename = "starfish_text.jpg"  # Keep the same filename
         file_path = os.path.join(app.static_folder, filename)
-        
+
         # If an old file exists, remove it
         if os.path.exists(file_path):
             os.remove(file_path)
-            
+
         file.save(file_path)
-        flash('Logo updated successfully', 'success')
-        return redirect(url_for('generate_report'))
-    
-    flash('Invalid file type. Please use .jpg', 'warning')
-    return redirect(url_for('generate_report'))
+        flash("Logo updated successfully", "success")
+        return redirect(url_for("generate_report"))
+
+    flash("Invalid file type. Please use .jpg", "warning")
+    return redirect(url_for("generate_report"))
+
 
 # session check for each route
 @app.before_request
