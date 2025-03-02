@@ -773,17 +773,22 @@ def overall_attendance():
         cursor.execute("SELECT DISTINCT SubjectName FROM subject ORDER BY SubjectName")
         all_subjects = [row["SubjectName"] for row in cursor.fetchall()]
 
+        # Modified query to group by student and day
         query = """
         SELECT 
             s.StudentID,
             s.StudentName,
-            c.ClassID,
-            c.ClassDate,
-            sub.SubjectID,
-            sub.SubjectName,
-            a.AttendanceStatus,
-            a.TimeAttended,
-            a.Reason
+            DATE(c.ClassDate) as AttendanceDate,
+            GROUP_CONCAT(DISTINCT sub.SubjectName SEPARATOR ', ') as Subjects,
+            MAX(a.TimeAttended) as TimeAttended,
+            -- If any attendance status for the day is 'Present', consider the student present for the day
+            CASE 
+                WHEN SUM(CASE WHEN a.AttendanceStatus = 'Present' THEN 1 ELSE 0 END) > 0 THEN 'Present'
+                WHEN SUM(CASE WHEN a.AttendanceStatus = 'Late' THEN 1 ELSE 0 END) > 0 THEN 'Late'
+                WHEN SUM(CASE WHEN a.AttendanceStatus = 'Absent with VR' THEN 1 ELSE 0 END) > 0 THEN 'Absent with VR'
+                ELSE 'Absent'
+            END as AttendanceStatus,
+            GROUP_CONCAT(DISTINCT a.Reason SEPARATOR '; ') as Reason
         FROM 
             student s
         JOIN 
@@ -792,8 +797,10 @@ def overall_attendance():
             classes c ON a.ClassID = c.ClassID
         JOIN
             subject sub ON c.SubjectID = sub.SubjectID
+        GROUP BY 
+            s.StudentID, s.StudentName, DATE(c.ClassDate)
         ORDER BY 
-            c.ClassDate DESC, s.StudentName, sub.SubjectName
+            AttendanceDate DESC, s.StudentName
         """
 
         logging.debug(f"Executing query: {query}")
@@ -803,7 +810,7 @@ def overall_attendance():
 
         # Format the datetime objects
         for row in attendance_data:
-            row["ClassDate"] = row["ClassDate"].strftime("%Y-%m-%d")
+            row["AttendanceDate"] = row["AttendanceDate"].strftime("%Y-%m-%d")
             if isinstance(row["TimeAttended"], timedelta):
                 total_seconds = int(row["TimeAttended"].total_seconds())
                 hours, remainder = divmod(total_seconds, 3600)
@@ -843,60 +850,49 @@ def update_attendance():
     try:
         # Accessing data as a dictionary
         student_id = data["StudentID"]
-        class_id = data["ClassID"]
+        attendance_date = data["AttendanceDate"]
         new_status = data["AttendanceStatus"]
         # Get the time from the request
         time_attended = data.get("TimeAttended", "")
         reason = data.get("Reason", "")
 
-        # Fetch the current status of the student for the specific class
+        # Find all classes for this student on this date
         cursor.execute(
             """
-            SELECT AttendanceStatus, TimeAttended FROM attendance
-            WHERE StudentID = %s AND ClassID = %s
-        """,
-            (student_id, class_id),
+            SELECT a.ClassID 
+            FROM attendance a
+            JOIN classes c ON a.ClassID = c.ClassID
+            WHERE a.StudentID = %s AND DATE(c.ClassDate) = %s
+            """,
+            (student_id, attendance_date)
         )
-        current_record = cursor.fetchone()
-
-        if not current_record:
+        
+        class_ids = cursor.fetchall()
+        
+        if not class_ids:
             logging.error(
-                f"No existing attendance record found for StudentID={student_id}, ClassID={class_id}"
+                f"No existing attendance records found for StudentID={student_id}, Date={attendance_date}"
             )
             return (
-                jsonify({"status": "error", "message": "No existing record found"}),
+                jsonify({"status": "error", "message": "No existing records found"}),
                 404,
             )
 
-        current_status, current_time_attended = current_record
+        # Set current time if marking as Present and time is not provided
+        if not time_attended and new_status == "Present":
+            time_attended = datetime.now().strftime("%H:%M:%S")
 
-        # Check if time_attended was provided in the request
-        if not time_attended:
-            # Only update TimeAttended if the status changes to 'Present' and was not 'Present' before
-            if current_status != "Present" and new_status == "Present":
-                time_attended = datetime.now().strftime(
-                    "%H:%M:%S"
-                )  # Set to current time
-                logging.info(f"TimeAttended updated to current time: {time_attended}")
-            else:
-                time_attended = current_time_attended  # Retain the current time
-        else:
-            logging.info(f"TimeAttended manually updated to: {time_attended}")
-
-        logging.info(
-            f"Updating record: StudentID={student_id}, ClassID={class_id}, Status={new_status}, Time={time_attended}, Reason={reason}"
-        )
-
-        # Update the attendance record
-        update_query = """
-        UPDATE attendance
-        SET AttendanceStatus = %s, TimeAttended = %s, Reason = %s
-        WHERE StudentID = %s AND ClassID = %s
-        """
-        cursor.execute(
-            update_query, (new_status, time_attended, reason, student_id, class_id)
-        )
-        logging.info(f"Rows affected: {cursor.rowcount}")
+        # Update attendance for all classes on this day
+        for class_id in class_ids:
+            update_query = """
+            UPDATE attendance
+            SET AttendanceStatus = %s, TimeAttended = %s, Reason = %s
+            WHERE StudentID = %s AND ClassID = %s
+            """
+            cursor.execute(
+                update_query, (new_status, time_attended, reason, student_id, class_id[0])
+            )
+            logging.info(f"Updated attendance for ClassID={class_id[0]}")
 
         conn.commit()
         logging.info("Database committed successfully")
