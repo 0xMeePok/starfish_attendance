@@ -510,11 +510,49 @@ def enroll_student():
                 ),
             )
             conn.commit()
+            
+            # Get the newly inserted student's ID
+            student_id = cursor.lastrowid
+            
+            # Auto-enroll in core subjects (English, Math, Science)
+            # Hardcoded subject IDs for English (1), Math (2), and Science (3)
+            subject_ids = [1, 2, 3]
 
-            flash("Student enrolled successfully!", "success")
+            for subject_id in subject_ids:
+                # Enroll the student in each core subject
+                cursor.execute(
+                    """
+                    INSERT INTO studentsubjects (StudentID, SubjectID)
+                    VALUES (%s, %s)
+                    """,
+                    (student_id, subject_id),
+                )
+
+                # Get all classes for the given SubjectID
+                cursor.execute(
+                    """
+                    SELECT ClassID FROM classes WHERE SubjectID = %s
+                    """,
+                    (subject_id,),
+                )
+                classes = cursor.fetchall()
+
+                # Create attendance records for the student for each class
+                for class_record in classes:
+                    cursor.execute(
+                        """
+                        INSERT INTO attendance (StudentID, ClassID, AttendanceStatus)
+                        VALUES (%s, %s, 'Absent')
+                        """,
+                        (student_id, class_record[0]),
+                    )
+            
+            conn.commit()
+            flash("Student enrolled successfully and registered for core subjects!", "success")
             return redirect(url_for("enroll_student"))
         except mysql.connector.Error as err:
             flash(f"Error enrolling student: {err}", "error")
+            conn.rollback()
         finally:
             cursor.close()
             conn.close()
@@ -603,18 +641,56 @@ def upload_student_enrollment():
                         channel_id,
                     ),
                 )
+                
+                # Get the newly inserted student's ID
+                student_id = cursor.lastrowid
+                
+                # Auto-enroll in core subjects (English, Math, Science)
+                # Hardcoded subject IDs for English (1), Math (2), and Science (3)
+                subject_ids = [1, 2, 3]
+
+                for subject_id in subject_ids:
+                    # Enroll the student in each core subject
+                    cursor.execute(
+                        """
+                        INSERT INTO studentsubjects (StudentID, SubjectID)
+                        VALUES (%s, %s)
+                        """,
+                        (student_id, subject_id),
+                    )
+
+                    # Get all classes for the given SubjectID
+                    cursor.execute(
+                        """
+                        SELECT ClassID FROM classes WHERE SubjectID = %s
+                        """,
+                        (subject_id,),
+                    )
+                    classes = cursor.fetchall()
+
+                    # Create attendance records for the student for each class
+                    for class_record in classes:
+                        cursor.execute(
+                            """
+                            INSERT INTO attendance (StudentID, ClassID, AttendanceStatus)
+                            VALUES (%s, %s, 'Absent')
+                            """,
+                            (student_id, class_record[0]),
+                        )
 
             # Commit the transaction after all inserts
             conn.commit()
-            flash("Students enrolled successfully from CSV!", "success")
+            flash("Students enrolled successfully from CSV and registered for core subjects!", "success")
 
         except mysql.connector.Error as err:
             # Handle MySQL-specific errors
             flash(f"Error enrolling students from CSV: {err}", "error")
+            conn.rollback()
 
         except Exception as e:
             # Handle any other exceptions (CSV parsing, etc.)
             flash(f"Error processing CSV file: {str(e)}", "error")
+            conn.rollback()
 
         finally:
             # Close cursor and connection in a finally block
@@ -676,38 +752,38 @@ def enroll_classes():
 
                 flash("Student enrolled in core subjects successfully!", "success")
 
-            elif subject_type == "mt":
-                subject_id = 4
+            # elif subject_type == "mt":
+            #     subject_id = 4
 
-                # Enroll the student in the mother tongue subject
-                cursor.execute(
-                    """
-                    INSERT INTO studentsubjects (StudentID, SubjectID)
-                    VALUES (%s, %s)
-                    """,
-                    (student_id, subject_id),
-                )
+            #     # Enroll the student in the mother tongue subject
+            #     cursor.execute(
+            #         """
+            #         INSERT INTO studentsubjects (StudentID, SubjectID)
+            #         VALUES (%s, %s)
+            #         """,
+            #         (student_id, subject_id),
+            #     )
 
-                # Get all classes for the mother tongue subject
-                cursor.execute(
-                    """
-                    SELECT ClassID FROM classes WHERE SubjectID = %s
-                    """,
-                    (subject_id,),
-                )
-                classes = cursor.fetchall()
+            #     # Get all classes for the mother tongue subject
+            #     cursor.execute(
+            #         """
+            #         SELECT ClassID FROM classes WHERE SubjectID = %s
+            #         """,
+            #         (subject_id,),
+            #     )
+            #     classes = cursor.fetchall()
 
-                # Create attendance records for the student for each class
-                for class_record in classes:
-                    cursor.execute(
-                        """
-                        INSERT INTO attendance (StudentID, ClassID, AttendanceStatus)
-                        VALUES (%s, %s, 'Absent')
-                        """,
-                        (student_id, class_record["ClassID"]),
-                    )
+            #     # Create attendance records for the student for each class
+            #     for class_record in classes:
+            #         cursor.execute(
+            #             """
+            #             INSERT INTO attendance (StudentID, ClassID, AttendanceStatus)
+            #             VALUES (%s, %s, 'Absent')
+            #             """,
+            #             (student_id, class_record["ClassID"]),
+            #         )
 
-                flash("Student enrolled in Mother Tongue successfully!", "success")
+            #     flash("Student enrolled in Mother Tongue successfully!", "success")
 
             conn.commit()
             return redirect(url_for("enroll_classes"))
