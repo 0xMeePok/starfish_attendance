@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ data.name[0][0]}}_Term_Report_{{ data.term.number }}</title>
     <style>
+        p {
+            font-size: 14px;
+        }
+
         body {
             font-family: Arial, sans-serif;
             line-height: 1.6;
@@ -13,7 +17,7 @@
         }
         .header {
             display: block;
-            margin-bottom: 60px;
+            margin-bottom: 30px;
         }
         table {
             width: 40%;
@@ -22,20 +26,26 @@
         }
         th, td {
             border: 1px solid #ddd;
-            padding: 8px;
-            text-align: center;
+            padding: 6px;
+            font-size: 14px;
         }
         .logo {
-            height: 100px;
-            margin-bottom: 1px;
+            height: 80px;
         }
         #remarks-input {
-            width: 80%;
-            height: 100px;
-            border-style: none; 
-            border-color: transparent;
+            width: 100%;
+            height: 150px;
+            border: 1px solid black; 
             box-sizing: border-box;
             resize: vertical;
+            text-align: left;
+            vertical-align: top;
+            padding: 8px;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.4;
+            overflow: auto;
         }
         #generate-report-btn {
             position: fixed;
@@ -76,7 +86,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin: 20px 0;
+            margin: 10px 0;
+            font-size: 14px;
         }
         
         .ref-number {
@@ -111,43 +122,48 @@
             <span class="ref-number">Our Ref: {{ now.strftime('%m') }}-{{ data.year }}</span>
             <span class="full-date">{{ now.strftime('%d %B %Y') }}</span>
         </div>
-        <p>Dear {{ data.name}},</p>
+        <p>Dear {{ data.name}},</p><br>
 
-        <h3>Progress Report for Project Starfish, Term {{ data.term.number }}, iStarfish 
-(Period: {{ data.term.start_date }} to {{ data.term.end_date }}) </h3>
+        <h4>Progress Report for Project Starfish, Term {{ data.term.number }} (Period: {{ data.term.start_date }} to {{ data.term.end_date }}) </h4>
 
-        <h3>1. ACADEMIC PERFORMANCE</h3>
+        <h4>1. ACADEMIC PERFORMANCE</h4>
         <div class="content">
             <p>The GCE NT Level examinations follows the grading below:</p>
-            <table style="width: 50%; font-size:15px;">
+            <table style="width: 60%; font-size:14px; text-align: center;">
                 <tr class="bg-light">
-                    <th></th>
-                    <th>100 - 75</th>
-                    <th>74 - 70</th>
-                    <th>69 - 60</th>
-                    <th>59 - 50</th>
-                    <th>49 - 0</th>
-                </tr>
-                <tr>
+                    <th>Scores</th>
                     <th>Grade</th>
-                    <td>A</td>
-                    <td>B</td>
-                    <td>C</td>
-                    <td>D</td>
-                    <td>E</td>
+                    <th>Point</th>
                 </tr>
                 <tr>
-                    <th>Point</th>
+                    <td>75 – 100</td>
+                    <td>A</td>
                     <td>1</td>
+                </tr>
+                <tr>
+                    <td>70 – 74</td>
+                    <td>B</td>
                     <td>2</td>
+                </tr>
+                <tr>
+                    <td>60 – 69</td>
+                    <td>C</td>
                     <td>3</td>
+                </tr>
+                <tr>
+                    <td>50 – 59</td>
+                    <td>D</td>
                     <td>4</td>
+                </tr>
+                <tr>
+                    <td>0 – 49</td>
+                    <td>E</td>
                     <td>5</td>
                 </tr>
             </table>
 
-            <p>The following are your Term {{ data.term.number }} test results:</p>
-            <table style="width: 65%; font-size:15px;">
+            <p>The following are your Proficiency test results:</p>
+            <table style="width: 85%; font-size:14px; text-align: left;">
                 <tr class="bg-light">
                     <th>No.</th>
                     <th>Subject</th>
@@ -192,15 +208,16 @@
                     <td>{{ data.marks['total'][1] }}</td>
                 </tr>
             </table>
-            {% if data.marks | length == 4 %}
+            <br>
+            <!-- {% if data.marks | length == 4 %}
             <br><br><br>
-            {% endif %}
+            {% endif %} -->
         </div>
 
-        <h3>2. BEHAVIOURAL REPORT</h3>
+        <h4>2. BEHAVIOURAL REPORT</h4>
         <div class="content">
             <p>The following areas reflect your attendance and conduct for Term {{ data.term.number }}.</p>
-            <table style="width: 50%; font-size:15px;">
+            <table style="width: 75%; font-size:14px;">
                 <tr class="bg-light">
                     <th>No.</th>
                     <th></th>
@@ -209,7 +226,7 @@
                 <tr>
                     <td>1</td>
                     <td>Present</td>
-                    <td>
+                    <td style="text-align: center;">
                         {% set divisor = 4 if 'Mother Tongue' in data.marks else 3 %}
                         {{ (data.attendanceByStatus['Present'] / divisor) | round(0) | int }} / {{ (data.attendanceByStatus['total'] / divisor) | round(0) | int }}
                     </td>
@@ -217,7 +234,7 @@
                 <tr>
                     <td>2</td>
                     <td>Attendance Rate</td>
-                    <td>
+                    <td style="text-align: center;">
                         {% if data.attendanceByStatus['total'] > 0 %}
                             {{ ((data.attendanceByStatus['Present'] + data.attendanceByStatus['Absent with VR']) / data.attendanceByStatus['total'] * 100) | round(2) }}%
                         {% else %}
@@ -229,7 +246,7 @@
                     <td>3</td>
                     <td>General Conduct</td>
                     <td>
-                        <select id="conduct-select" style="width: 100%; font-size: 15px;">
+                        <select id="conduct-select" style="width: 100%; font-size: 14px;">
                             <option value="">Select Conduct</option>
                             <option value="Excellent">Excellent</option>
                             <option value="Good">Good</option>
@@ -241,18 +258,44 @@
             </table>
             <p>* Attendance will be counted for those whose absence are supported with valid reason i.e. MC shown, or other
                 valid reasons supported with documentation</p>
-        </div>
-        <h3>3. REVIEW</h3>
+        </div><br>
+        <h4>3. REVIEW</h4>
         <div class="content">
-            <p>The Starfish team will conduct a briefing to inform you of your journey ahead. We look forward to continue
-                supporting you in your academic journey.</p>
+            <p>You 
+                {% if data.attendanceByStatus['total'] > 0 and ((data.attendanceByStatus['Present'] + data.attendanceByStatus['Absent with VR']) / data.attendanceByStatus['total'] * 100) >= 75 %}
+                    have
+                {% else %}
+                    have not
+                {% endif %}
+                met the minimum attendance criteria of 75%.
+            </p>
+            <p>You 
+                {% if data.marks['total'][0] >= 40 %}
+                    have
+                {% else %}
+                    have not
+                {% endif %}
+                met the minimum average mark criteria of 40%.
+            </p>
+            <h5>Status:</h5>
+            <textarea id="remarks-input" placeholder="Enter Status here..."></textarea>
+            <p>We look forward to continuously supporting you in your academic journey.</p>
         </div>
             <br>
-            <p>Yours sincerely,</p>
-            <img style="width: 120px;" src="{{ url_for('static', filename='siti.png') }}" alt="Siti Sig" />
-            <p>Siti Yariyati<br>
-            Course Manager</p>
-        <p id="prompt">Select General Conduct first before able to generate</p>
+            <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+                <div style="width: 45%;">
+                    <p style="margin-bottom: 5px;">Yours sincerely,</p>
+                    <img style=" margin-left: 10px; width: 90px;" src="{{ url_for('static', filename='siti.png') }}" alt="Siti Sig" />
+                    <p style="margin-top: 0; margin-bottom: 0;">Siti Yariyati<br>
+                    Course Manager, Starfish Singapore</p>
+                </div>
+                <div style="width: 30%;">
+                    <p style="text-decoration: underline; margin-bottom: 10px;">Student Acknowledgement</p>
+                    <p style="margin-top: 5px; margin-bottom: 10px;">Signature: <span style="display: inline-block; min-width: 120px;"></span></p>
+                    <p style="margin-top: 5px; margin-bottom: 0;">Date: <span style="display: inline-block; min-width: 150px;"></span></p>
+                </div>
+            </div>
+        <p id="prompt">Select Conduct & Enter Status before generating</p>
         <input type="submit" id="generate-report-btn" value="Generate Report">
     </div>
 
@@ -261,20 +304,25 @@
             const button = document.getElementById('generate-report-btn');
             const prompt = document.getElementById('prompt');
             const conductSelect = document.getElementById('conduct-select');
+            const remarksInput = document.getElementById('remarks-input');
 
             // Initially hide the button
             button.style.display = 'none';
 
-            // Show the button when conduct is selected
-            conductSelect.addEventListener('change', function() {
-                if (this.value !== '') {
+            // Function to check if both inputs are filled
+            function checkInputs() {
+                if (conductSelect.value !== '' && remarksInput.value.trim() !== '') {
                     button.style.display = 'block';
                     prompt.style.display = 'none';
                 } else {
                     button.style.display = 'none';
                     prompt.style.display = 'block';
                 }
-            });
+            }
+
+            // Add event listeners to both inputs
+            conductSelect.addEventListener('change', checkInputs);
+            remarksInput.addEventListener('input', checkInputs);
 
             // Function to generate PDF
             button.addEventListener('click', function() {
@@ -284,6 +332,24 @@
                 conductSelect.style.webkitAppearance = 'none';
                 conductSelect.style.mozAppearance = 'none';
                 conductSelect.style.appearance = 'none';
+                
+                // Create a div to replace the textarea for better text positioning in PDF
+                const textareaContent = remarksInput.value;
+                const textareaParent = remarksInput.parentNode;
+                const textDiv = document.createElement('div');
+                textDiv.style.border = '1px solid black';
+                textDiv.style.padding = '8px';
+                textDiv.style.minHeight = '150px';
+                textDiv.style.boxSizing = 'border-box';
+                textDiv.style.textAlign = 'left';
+                textDiv.style.fontFamily = 'Arial, sans-serif';
+                textDiv.style.fontSize = '14px';
+                textDiv.style.lineHeight = '1.4';
+                textDiv.innerHTML = textareaContent.replace(/\n/g, '<br>');
+                
+                // Hide the textarea and insert the div
+                remarksInput.style.display = 'none';
+                textareaParent.insertBefore(textDiv, remarksInput);
                 
                 // Configure PDF options
                 const options = {
@@ -335,6 +401,12 @@
                 
                 html2pdf().set(options).from(element).save()
                     .then(() => {
+                        // Restore textarea and remove div
+                        remarksInput.style.display = '';
+                        if (textDiv.parentNode) {
+                            textDiv.parentNode.removeChild(textDiv);
+                        }
+                        
                         // Restore original styles
                         document.body.style.padding = '20px';
                         button.style.display = 'block';
