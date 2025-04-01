@@ -209,7 +209,10 @@
                 <tr>
                     <td>1</td>
                     <td>Present</td>
-                    <td>{{ data.attendanceByStatus['Present'] }} / {{ data.attendanceByStatus['total']  }}</td>
+                    <td>
+                        {% set divisor = 4 if 'Mother Tongue' in data.marks else 3 %}
+                        {{ (data.attendanceByStatus['Present'] / divisor) | round(0) | int }} / {{ (data.attendanceByStatus['total'] / divisor) | round(0) | int }}
+                    </td>
                 </tr>
                 <tr>
                     <td>2</td>

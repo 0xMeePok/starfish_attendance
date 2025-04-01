@@ -203,17 +203,26 @@
                 <tr>
                     <td>1</td>
                     <td>Present</td>
-                    <td>{{ data.attendanceByStatus['Present'] }} / {{ data.attendanceByStatus['total'] if data.attendanceByStatus['total'] else 0 }}</td>
+                    <td>
+                        {% set divisor = 4 if 'Mother Tongue' in data.marks else 3 %}
+                        {{ (data.attendanceByStatus['Present'] / divisor) | round(0) | int }} / {{ (data.attendanceByStatus['total'] / divisor) | round(0) | int }}
+                    </td>
                 </tr>
                 <tr>
                     <td>2</td>
                     <td>Absent with VR</td>
-                    <td>{{ data.attendanceByStatus['Absent with VR'] }} / {{ data.attendanceByStatus['total'] if data.attendanceByStatus['total'] else 0 }}</td>
+                    <td>
+                        {% set divisor = 4 if 'Mother Tongue' in data.marks else 3 %}
+                        {{ (data.attendanceByStatus['Absent with VR'] / divisor) | round(0) | int }} / {{ (data.attendanceByStatus['total'] / divisor) | round(0) | int }}
+                    </td>
                 </tr>
                 <tr>
                     <td>3</td>
                     <td>Attended Late</td>
-                    <td>{{ data.attendanceByStatus['Late'] }} / {{ data.attendanceByStatus['total'] if data.attendanceByStatus['total'] else 0 }}</td>
+                    <td>
+                        {% set divisor = 4 if 'Mother Tongue' in data.marks else 3 %}
+                        {{ (data.attendanceByStatus['Late'] / divisor) | round(0) | int }} / {{ (data.attendanceByStatus['total'] / divisor) | round(0) | int }}
+                    </td>
                 </tr>
                 <tr>
                     <td>4</td>
@@ -226,7 +235,6 @@
                         {% endif %}
                     </td>
                 </tr>
-                
             </table>
             <p>* Attendance rate will be counted with consideration of VR (valid reason) i.e. MC shown, or other reasons supported with documentation</p>
         </div>
