@@ -1970,16 +1970,18 @@ def retrieveDetails(student_id, year):
 
 
 def get_grade(score):
-    if 75 <= score <= 100:
+    if score >= 75 and score <= 100:
         return "A"
-    elif 70 <= score <= 74:
+    elif score >= 70 and score < 75:
         return "B"
-    elif 60 <= score <= 69:
+    elif score >= 60 and score < 70:
         return "C"
-    elif 50 <= score <= 59:
+    elif score >= 50 and score < 60:
         return "D"
-    elif 0 <= score <= 49:
+    elif score >= 0 and score < 50:
         return "E"
+    else:
+        return "N/A"  # For scores outside valid range
 
 
 @app.route("/export_subject_attendance", methods=["GET", "POST"])
